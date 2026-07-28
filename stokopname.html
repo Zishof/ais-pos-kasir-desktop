@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' file: https: data: blob:; worker-src 'self' blob:;">
+<title>POS Kasir - Stok Opname</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-50: #eff6ff;
+        --primary-100: #dbeafe;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --border: #e2e8f0;
+        --bg: #f1f5f9;
+        --surface: #ffffff;
+        --danger: #dc2626;
+        --danger-50: #fef2f2;
+        --success: #16a34a;
+        --success-50: #f0fdf4;
+        --warning: #d97706;
+        --warning-50: #fffbeb;
+        --radius: 12px;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+        --shadow-md: 0 4px 14px rgba(15, 23, 42, .08);
+        --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        background: var(--bg); color: var(--ink); height: 100vh; overflow: hidden; font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+    }
+    .shell { display: flex; height: 100vh; }
+
+    /* ---- Sidebar (identik pos.html/ringkasan.html) ---- */
+    .sidebar { width: 208px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar .brand { display: flex; align-items: center; gap: 9px; padding: 20px 18px 16px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+    .sidebar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .sidebar nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; }
+    .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); text-decoration: none; cursor: default; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+    .nav-item .ico { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-item.aktif { background: var(--primary-50); color: var(--primary); }
+    .nav-item .badge-pesanan-baru { display: none; align-items: center; justify-content: center; margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; }
+    .sidebar .foot { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
+    .sidebar .toko-nama { font-weight: 700; font-size: 13px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+    .status-pill.online { background: var(--success-50); color: var(--success); }
+    .status-pill.offline { background: var(--danger-50); color: var(--danger); }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ---- Main ---- */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .topbar h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+    .topbar .spacer { flex: 1; }
+    .btn-sync, .btn-kecil {
+        background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 9px;
+        padding: 8px 13px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .btn-sync:hover, .btn-kecil:hover { border-color: var(--primary); background: var(--primary-50); }
+    .btn-sync:disabled, .btn-kecil:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-kecil.primer { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-kecil.primer:hover { background: var(--primary-dark); }
+
+    .konten-scroll { flex: 1; overflow-y: auto; padding: 22px 24px; }
+
+    .grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .kartu-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 14px 16px; }
+    .kartu-kpi .label { font-size: 10.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .kartu-kpi .nilai { font-size: 19px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .kartu-kpi.sukses .nilai { color: var(--success); }
+    .kartu-kpi.bahaya .nilai { color: var(--danger); }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 16px; }
+    .panel h2 { font-size: 14px; margin: 0 0 2px; font-weight: 800; }
+    .panel .ket { font-size: 11px; color: var(--muted); margin: 0 0 14px; }
+
+    /* ---- Tab switcher (gap-closure -- padanan 3 tab JSP stok.jsp: Kartu Mutasi Stok/Stok Opname/SO by Scan) ---- */
+    .tab-row { flex-shrink: 0; display: flex; gap: 6px; padding: 14px 24px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .tab-btn { padding: 10px 16px; border: none; background: none; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; font-family: inherit; margin-bottom: -1px; }
+    .tab-btn:hover { color: var(--ink); }
+    .tab-btn.aktif { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-panel { display: none; }
+    .tab-panel.aktif { display: block; }
+
+    .panel-kontrol { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .panel-kontrol select { border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 9px; font-size: 12px; font-family: inherit; color: var(--ink); }
+    .panel-kontrol label { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 980px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* ---- Chart batang vertikal (identik pola ringkasan.html) ---- */
+    .chart-v-wrap { display: flex; align-items: flex-end; gap: 8px; height: 150px; padding-top: 10px; }
+    .chart-v-kolom { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+    .chart-v-kolom .batang-ganda { width: 100%; max-width: 30px; display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 100%; }
+    .chart-v-kolom .batang-ganda .batang { flex: 1; border-radius: 3px 3px 0 0; min-height: 2px; }
+    .chart-v-kolom .batang-ganda .batang.masuk { background: linear-gradient(180deg, var(--success), #15803d); }
+    .chart-v-kolom .batang-ganda .batang.keluar { background: linear-gradient(180deg, var(--danger), #b91c1c); }
+    .chart-v-kolom .label { font-size: 9px; color: var(--muted); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .legenda-stack { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 10px; }
+    .legenda-stack .item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
+    .legenda-stack .dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+
+    .baris-bar { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .baris-bar:last-child { border-bottom: none; }
+    .baris-bar .peringkat { width: 22px; height: 22px; border-radius: 6px; background: var(--primary-50); color: var(--primary); font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .baris-bar .nama { flex: 1; font-weight: 600; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .baris-bar .batang-wrap { flex: 1; max-width: 180px; height: 7px; background: var(--bg); border-radius: 999px; overflow: hidden; }
+    .baris-bar .batang { height: 100%; background: linear-gradient(90deg, var(--primary), #7c3aed); border-radius: 999px; }
+    .baris-bar .nilai { width: 70px; text-align: right; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+    /* ---- SO by Scan (HP/PDT) -- antrean scan batch ---- */
+    .scan-toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+    .scan-toolbar input { flex: 1; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; }
+    .scan-toolbar input:focus { outline: none; border-color: var(--primary); }
+    .btn-kamera { background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 10px; padding: 0 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn-kamera.aktif { background: var(--danger-50); color: var(--danger); border-color: var(--danger-50); }
+    #videoKameraScan { width: 100%; max-width: 420px; border-radius: 10px; margin-bottom: 14px; display: none; background: #000; }
+    #videoKameraScan.tampil { display: block; }
+
+    .stat-scan-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    .stat-scan { flex: 1; background: var(--bg); border-radius: 10px; padding: 10px 12px; text-align: center; }
+    .stat-scan .label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+    .stat-scan .nilai { font-size: 17px; font-weight: 800; margin-top: 3px; }
+    .stat-scan.lebih .nilai { color: var(--success); }
+    .stat-scan.kurang .nilai { color: var(--danger); }
+    .proporsi-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--bg); margin-bottom: 16px; }
+    .proporsi-bar .seg-lebih { background: var(--success); height: 100%; }
+    .proporsi-bar .seg-kurang { background: var(--danger); height: 100%; }
+
+    .tabel-antrean-scan { width: 100%; border-collapse: collapse; }
+    .tabel-antrean-scan th { text-align: left; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); background: var(--bg); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .tabel-antrean-scan td { padding: 7px 10px; font-size: 12px; border-bottom: 1px solid var(--border); }
+    .tabel-antrean-scan .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .tabel-antrean-scan .stepper { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+    .tabel-antrean-scan .stepper button { width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--border); background: var(--bg); font-size: 12px; cursor: pointer; }
+    .tabel-antrean-scan .stepper input { width: 54px; text-align: center; padding: 3px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; font-family: inherit; }
+    .tabel-antrean-scan .btn-hapus-baris { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 13px; padding: 2px 6px; }
+
+    .baris-scan { display: flex; gap: 8px; margin-bottom: 14px; }
+    .baris-scan input { flex: 1; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; }
+    .baris-scan input:focus { outline: none; border-color: var(--primary); }
+
+    .kartu-produk-scan { background: var(--primary-50); border: 1px solid var(--primary-100); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; display: none; }
+    .kartu-produk-scan.tampil { display: block; }
+    .kartu-produk-scan .nama { font-weight: 800; font-size: 14px; }
+    .kartu-produk-scan .meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .kartu-produk-scan .baris-input { display: flex; gap: 10px; margin-top: 12px; align-items: flex-end; }
+    .kartu-produk-scan .field { flex: 1; }
+    .kartu-produk-scan .field label { display: block; font-size: 10.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+    .kartu-produk-scan .field input { width: 100%; padding: 9px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; }
+
+    .tabel-dasbor { width: 100%; border-collapse: collapse; }
+    .tabel-dasbor th {
+        text-align: left; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+        color: var(--muted); background: var(--bg); padding: 9px 12px; border-bottom: 1px solid var(--border);
+    }
+    .tabel-dasbor td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .tabel-dasbor tr:last-child td { border-bottom: none; }
+    .tabel-dasbor .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .scroll-tabel { overflow-x: auto; }
+
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+    .badge.hijau { background: var(--success-50); color: var(--success); }
+    .badge.merah { background: var(--danger-50); color: var(--danger); }
+    .badge.abu { background: var(--bg); color: var(--muted); }
+
+    .daftar-kosong { text-align: center; color: var(--faint); padding: 30px 16px; font-size: 12.5px; }
+    .daftar-kosong .ico { font-size: 26px; display: block; margin-bottom: 6px; opacity: .5; }
+    .info-strip { padding: 10px 14px; font-size: 11.5px; color: var(--muted); background: var(--bg); border-radius: 10px; margin-bottom: 14px; }
+    .layar-blokir { text-align: center; color: var(--muted); padding: 40px 16px; font-size: 12.5px; }
+    .layar-blokir .ico { font-size: 28px; display: block; margin-bottom: 8px; opacity: .6; }
+
+    .layar-penuh { position: fixed; inset: 0; background: rgba(241, 245, 249, .96); display: flex; align-items: center; justify-content: center; font-size: 13.5px; color: var(--muted); z-index: 40; }
+    .layar-penuh.tersembunyi { display: none; }
+
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff; box-shadow: var(--shadow-lg); z-index: 50; max-width: 480px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .toast.tampil { opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: #334155; }
+</style>
+</head>
+<body>
+    <div class="shell">
+        <div class="sidebar">
+            <div class="brand"><span class="logo-dot">&#128179;</span> <span data-i18n="POS Kasir">POS Kasir</span></div>
+            <nav>
+                <a class="nav-item" href="pos.html"><span class="ico">&#128179;</span> <span data-i18n="Kasir">Kasir</span></a>
+                <a class="nav-item" href="ringkasan.html"><span class="ico">&#128202;</span> <span data-i18n="Ringkasan">Ringkasan</span></a>
+                <a class="nav-item" href="pesanan.html"><span class="ico">&#128717;&#65039;</span> <span data-i18n="Pesanan">Pesanan</span></a>
+                <a class="nav-item" href="anggota.html"><span class="ico">&#128100;</span> <span data-i18n="Customer/Anggota">Customer/Anggota</span></a>
+                <a class="nav-item" href="produk.html"><span class="ico">&#128230;</span> <span data-i18n="Produk">Produk</span></a>
+                <button class="nav-item aktif" type="button"><span class="ico">&#128203;</span> <span data-i18n="Stok Opname">Stok Opname</span></button>
+                <a class="nav-item" href="diskon.html"><span class="ico">&#127991;&#65039;</span> <span data-i18n="Aturan Diskon">Aturan Diskon</span></a>
+                <a class="nav-item" href="laporan-transaksi.html"><span class="ico">&#128203;</span> <span data-i18n="Laporan Transaksi">Laporan Transaksi</span></a>
+                <a class="nav-item" href="laporan.html"><span class="ico">&#128194;</span> <span data-i18n="Laporan-Laporan">Laporan-Laporan</span></a>
+                <a class="nav-item" href="riwayat-sinkronisasi.html"><span class="ico">&#128260;</span> <span data-i18n="Riwayat Sinkronisasi">Riwayat Sinkronisasi</span></a>
+                <a class="nav-item" href="log-error.html"><span class="ico">&#128721;</span> <span data-i18n="Log Error">Log Error</span></a>
+                <a class="nav-item" href="konfigurasi.html"><span class="ico">&#9881;&#65039;</span> <span data-i18n="Konfigurasi">Konfigurasi</span></a>
+            </nav>
+            <div class="foot">
+                <div class="toko-nama" id="namaToko">Kasir</div>
+                <span class="status-pill offline" id="statusPill"><span class="dot"></span><span id="statusTeks" data-i18n="Memeriksa...">Memeriksa...</span></span>
+                <button type="button" class="btn-logout-akun" id="btnLogoutAkun" title="Keluar dari akun ini (kembali ke layar login)" style="display:block;width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid var(--danger,#dc2626);border-radius:8px;background:var(--surface,#fff);color:var(--danger,#dc2626);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128274; <span data-i18n="Logout">Logout</span></button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="topbar">
+                <div><h1 data-i18n="Stok Opname">Stok Opname</h1></div>
+                <div class="spacer"></div>
+                <button class="btn-sync" id="btnMuatUlang">&#128260; <span data-i18n="Muat Ulang">Muat Ulang</span></button>
+                <button class="btn-sync" id="btnBantuan" data-topik="stokopname" data-i18n-title="Bantuan / panduan pakai layar ini" title="Bantuan / panduan pakai layar ini">&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
+                <div id="i18nSwitcher"></div>
+            </div>
+
+            <div class="konten-scroll">
+                <div class="grid-kpi" id="kpiRingkasan">
+                    <div class="kartu-kpi"><div class="label">Produk Diopname</div><div class="nilai" id="kpiJumlahProduk">0</div></div>
+                    <div class="kartu-kpi"><div class="label">Total Catatan</div><div class="nilai" id="kpiJumlahCatatan">0</div></div>
+                    <div class="kartu-kpi sukses"><div class="label">Total Lebih</div><div class="nilai" id="kpiTotalLebih">0</div></div>
+                    <div class="kartu-kpi bahaya"><div class="label">Total Kurang</div><div class="nilai" id="kpiTotalKurang">0</div></div>
+                    <div class="kartu-kpi"><div class="label">Selisih Bersih</div><div class="nilai" id="kpiSelisihBersih">0</div></div>
+                </div>
+
+                <!-- ==== 3 tab, gap-closure -- padanan JSP stok.jsp (Kartu Mutasi Stok/Stok Opname/SO by Scan) ==== -->
+                <div class="tab-row">
+                    <button class="tab-btn aktif" type="button" data-tab="dashboard" data-i18n="Kartu Mutasi Stok">Kartu Mutasi Stok</button>
+                    <button class="tab-btn" type="button" data-tab="manual" data-i18n="Stok Opname">Stok Opname</button>
+                    <button class="tab-btn" type="button" data-tab="scan" data-i18n="SO by Scan (HP/PDT)">SO by Scan (HP/PDT)</button>
+                </div>
+
+                <!-- ---- Tab 1: Dashboard Mutasi Barang ---- -->
+                <div class="tab-panel aktif" id="tabDashboard">
+                    <div class="panel">
+                        <h2 data-i18n="Dashboard Mutasi Barang">Dashboard Mutasi Barang</h2>
+                        <p class="ket" data-i18n="Monitoring pergerakan barang masuk (Pengadaan) dan keluar (Penjualan/Opname).">Monitoring pergerakan barang masuk (Pengadaan) dan keluar (Penjualan/Opname).</p>
+                        <div class="panel-kontrol">
+                            <label data-i18n="Periode">Periode</label>
+                            <select id="selPeriodeDashboard">
+                                <option value="today" data-i18n="Hari Ini">Hari Ini</option>
+                                <option value="week" data-i18n="Minggu Ini">Minggu Ini</option>
+                                <option value="month" selected data-i18n="Bulan Ini">Bulan Ini</option>
+                                <option value="semester" data-i18n="6 Bulan Terakhir">6 Bulan Terakhir</option>
+                                <option value="year" data-i18n="Tahun Ini">Tahun Ini</option>
+                                <option value="3years" data-i18n="3 Tahun Terakhir">3 Tahun Terakhir</option>
+                            </select>
+                            <button type="button" class="btn-kecil" id="btnMuatUlangDashboard">&#128260; <span data-i18n="Segarkan">Segarkan</span></button>
+                        </div>
+                        <div class="grid-kpi">
+                            <div class="kartu-kpi sukses"><div class="label" data-i18n="Barang Masuk">Barang Masuk</div><div class="nilai" id="kpiBarangMasuk">0</div></div>
+                            <div class="kartu-kpi bahaya"><div class="label" data-i18n="Barang Keluar">Barang Keluar</div><div class="nilai" id="kpiBarangKeluar">0</div></div>
+                            <div class="kartu-kpi"><div class="label" data-i18n="Total Stok Saat Ini">Total Stok Saat Ini</div><div class="nilai" id="kpiTotalStok">0</div></div>
+                            <div class="kartu-kpi bahaya"><div class="label" data-i18n="Peringatan Stok < 10">Peringatan Stok &lt; 10</div><div class="nilai" id="kpiStokKritis">0</div></div>
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="panel">
+                            <h2 data-i18n="Tren Pergerakan Barang">Tren Pergerakan Barang</h2>
+                            <p class="ket" data-i18n="Berapa banyak barang masuk dan keluar tiap periode, supaya terlihat naik-turunnya.">Berapa banyak barang masuk dan keluar tiap periode, supaya terlihat naik-turunnya.</p>
+                            <div id="chartTrenMutasi"></div>
+                            <div class="legenda-stack">
+                                <div class="item"><span class="dot" style="background:var(--success);"></span> <span data-i18n="Barang Masuk">Barang Masuk</span></div>
+                                <div class="item"><span class="dot" style="background:var(--danger);"></span> <span data-i18n="Barang Keluar">Barang Keluar</span></div>
+                            </div>
+                        </div>
+                        <div class="panel">
+                            <h2 data-i18n="Top 5 Barang Keluar">Top 5 Barang Keluar</h2>
+                            <p class="ket" data-i18n="Barang apa saja yang paling cepat berkurang stoknya.">Barang apa saja yang paling cepat berkurang stoknya.</p>
+                            <div id="chartTop5Keluar"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ---- Tab 2: Stok Opname manual (existing, tidak diubah) ---- -->
+                <div class="tab-panel" id="tabManual">
+                    <div id="panelEntriSo">
+                        <div class="panel">
+                            <h2 data-i18n="Catat Hasil Hitung Fisik">Catat Hasil Hitung Fisik</h2>
+                            <p class="ket" data-i18n="Ketik/scan barcode atau kode produk, lalu masukkan hasil hitung fisik. Setiap baris yang ditambahkan langsung tersimpan sebagai catatan Stok Opname resmi (stok produk otomatis disesuaikan).">Ketik/scan barcode atau kode produk, lalu masukkan hasil hitung fisik. Setiap baris yang ditambahkan langsung tersimpan sebagai catatan Stok Opname resmi (stok produk otomatis disesuaikan).</p>
+                            <div class="baris-scan">
+                                <input type="text" id="inBarcodeSo" placeholder="Scan atau ketik barcode/kode produk, lalu Enter...">
+                                <button type="button" class="btn-kecil primer" id="btnCariSo">Cari</button>
+                            </div>
+                            <div class="kartu-produk-scan" id="kartuProdukSo">
+                                <div class="nama" id="soNamaProduk">-</div>
+                                <div class="meta" id="soMetaProduk">-</div>
+                                <div class="baris-input">
+                                    <div class="field"><label>Stok Fisik (Hasil Hitung)</label><input type="text" inputmode="decimal" id="soStokFisik"></div>
+                                    <div class="field"><label>Keterangan (opsional)</label><input type="text" id="soKeterangan" placeholder="mis. Barang Basi, Hilang"></div>
+                                    <button type="button" class="btn-kecil primer" id="btnSimpanSo" style="flex-shrink:0;">Simpan Catatan</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <h2 data-i18n="Riwayat Opname Hari Ini">Riwayat Opname Hari Ini</h2>
+                            <p class="ket" data-i18n="Seluruh catatan Stok Opname hari ini dari server -- tetap tampil walau layar ini dimuat ulang atau dibuka dari perangkat lain.">Seluruh catatan Stok Opname hari ini dari server -- tetap tampil walau layar ini dimuat ulang atau dibuka dari perangkat lain.</p>
+                            <div class="scroll-tabel"><table class="tabel-dasbor" id="tabelRiwayatSo"></table></div>
+                        </div>
+                    </div>
+
+                    <div class="layar-blokir" id="blokirSo" style="display:none;">
+                        <span class="ico">&#128274;</span>
+                        Hanya supervisor toko atau admin/manager yang dapat mencatat Stok Opname.<br>
+                        Ringkasan di atas tetap bisa dilihat siapa saja.
+                    </div>
+                </div>
+
+                <!-- ---- Tab 3: SO by Scan (HP/PDT) -- antrean scan batch, gap-closure ---- -->
+                <div class="tab-panel" id="tabScan">
+                    <div id="panelScanSo">
+                        <div class="panel">
+                            <h2 data-i18n="SO by Scan (HP/PDT)">SO by Scan (HP/PDT)</h2>
+                            <p class="ket" data-i18n="Scan barcode berturut-turut (scanner PDT eksternal atau kamera HP), tiap hasil masuk antrean di bawah -- sesuaikan jumlah fisik lalu simpan semua sekaligus.">Scan barcode berturut-turut (scanner PDT eksternal atau kamera HP), tiap hasil masuk antrean di bawah -- sesuaikan jumlah fisik lalu simpan semua sekaligus.</p>
+                            <div class="scan-toolbar">
+                                <input type="text" id="inBarcodeScan" inputmode="none" placeholder="Scan atau ketik barcode/kode produk, lalu Enter...">
+                                <button type="button" class="btn-kamera" id="btnKameraScan">&#128247; <span data-i18n="Kamera">Kamera</span></button>
+                            </div>
+                            <div id="readerKameraScan" style="display:none;margin-bottom:14px;"></div>
+
+                            <div class="stat-scan-row">
+                                <div class="stat-scan"><div class="label" data-i18n="Item Discan">Item Discan</div><div class="nilai" id="statItemScan">0</div></div>
+                                <div class="stat-scan lebih"><div class="label" data-i18n="Lebih (+)">Lebih (+)</div><div class="nilai" id="statLebihScan">0</div></div>
+                                <div class="stat-scan kurang"><div class="label" data-i18n="Kurang (-)">Kurang (-)</div><div class="nilai" id="statKurangScan">0</div></div>
+                                <div class="stat-scan"><div class="label" data-i18n="Selisih Bersih">Selisih Bersih</div><div class="nilai" id="statSelisihScan">0</div></div>
+                            </div>
+                            <div class="proporsi-bar" id="proporsiScan"></div>
+
+                            <div class="scroll-tabel"><table class="tabel-antrean-scan" id="tabelAntreanScan"></table></div>
+
+                            <div class="field" style="margin-top:14px;"><label data-i18n="Keterangan (berlaku utk semua baris di bawah, opsional)">Keterangan (berlaku utk semua baris di bawah, opsional)</label><input type="text" id="ketAntreanScan" placeholder="mis. Opname rutin harian"></div>
+                            <div style="display:flex;gap:8px;margin-top:12px;">
+                                <button type="button" class="btn-kecil" id="btnKosongkanAntreanScan" data-i18n="Kosongkan">Kosongkan</button>
+                                <button type="button" class="btn-kecil primer" id="btnSimpanSemuaScan" style="flex:1;" disabled>Simpan Semua (0)</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="layar-blokir" id="blokirScan" style="display:none;">
+                        <span class="ico">&#128274;</span>
+                        Hanya supervisor toko atau admin/manager yang dapat mencatat Stok Opname.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="layar-penuh tersembunyi" id="layarMuat"><span data-i18n="Memuat...">Memuat...</span></div>
+    <div class="toast" id="toast"></div>
+
+    <script src="error-capture.js"></script>
+    <script src="i18n.js"></script>
+    <script src="pesan-detail.js"></script>
+    <script src="bantuan.js"></script>
+    <script src="akses-menu.js"></script>
+    <script src="logout-akun.js"></script>
+    <script src="branding.js"></script>
+<script src="pesanan-badge.js"></script>
+    <script src="vendor/html5-qrcode.min.js"></script>
+    <script src="stokopname-renderer.js"></script>
+</body>
+</html>

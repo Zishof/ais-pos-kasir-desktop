@@ -1,0 +1,227 @@
+================================================================================
+TUTORIAL: BUILD INSTALLER DESKTOP WINDOWS -- AIS POS KASIR (Electron)
+Folder proyek ini: desktop-pos-electron/ (sejajar dengan pom.xml di root repo)
+Dibuat  : 2026-07-22
+Catatan : Tutorial ini memakai variabel REPO_ROOT yang Anda isi sendiri sesuai
+          lokasi folder source di komputer Anda -- lihat BAGIAN 0 tutorial
+          Maven (TUTORIAL_BUILD_DEPLOY_KANTIN_MAVEN.txt) bila belum familiar
+          dengan pola ini.
+================================================================================
+
+APA INI SEBENARNYA?
+--------------------
+Aplikasi ini BUKAN aplikasi POS baru -- ia adalah "jendela pembungkus" (shell)
+native Windows di atas aplikasi web AIS Anda yang sudah berjalan di server
+(JSP+ZK+Hibernate). Kasir tetap login dan memakai POS Kantin persis seperti di
+browser biasa; yang bertambah HANYA:
+  1. Wizard pengaturan alamat server (host/contextpath/HTTPS) yang WAJIB diisi
+     sebelum aplikasi bisa dipakai, muncul otomatis saat pertama kali dibuka.
+  2. Layar Pelanggan sebagai jendela native yang otomatis pindah ke monitor
+     KEDUA (bila perangkat memang punya dua layar), dibuka/ditutup lewat
+     tombol "Layar Pelanggan" yang sudah ada di halaman POS -- kasir tidak
+     perlu belajar apa pun yang baru.
+  3. Penyimpanan transaksi lokal PERSISTEN via SQLite (bukan sekadar
+     IndexedDB) -- tahan mati listrik, dan TIDAK PERNAH menghapus transaksi
+     meski sudah tersinkron (jadi juga berfungsi sebagai cadangan lokal
+     permanen). Lihat BAGIAN 8.
+Fitur offline-first (transaksi tersimpan lokal saat internet putus) dan
+sinkronisasi otomatis TETAP JALAN SEPENUHNYA baik di browser biasa (IndexedDB)
+maupun di shell desktop ini (SQLite) -- lihat BAGIAN 8 untuk detail bedanya.
+
+
+================================================================================
+BAGIAN 1 - PRASYARAT
+================================================================================
+
+1. Node.js terpasang (versi 18 ke atas dianjurkan). Cek dengan:
+       node -v
+       npm -v
+
+2. Build INSTALLER WINDOWS (.exe) HANYA bisa dilakukan dari komputer Windows
+   (electron-builder memakai NSIS yang berjalan native di Windows). Menjalankan
+   APLIKASINYA untuk uji coba (mode developer, BUKAN installer) bisa dilakukan
+   di komputer mana pun yang punya Node.js.
+
+3. Koneksi internet diperlukan SEKALI di awal untuk mengunduh dependensi
+   (Electron sendiri berukuran cukup besar, ~100-150 MB) -- setelah terunduh
+   ke node_modules/, tidak perlu internet lagi untuk build berikutnya.
+
+
+================================================================================
+BAGIAN 2 - STRUKTUR PROYEK
+================================================================================
+
+  desktop-pos-electron/
+    package.json         -> metadata + konfigurasi electron-builder (target NSIS Windows)
+    main.js               -> proses utama: buka jendela, kelola konfigurasi, kelola Layar Pelanggan
+    preload.js             -> jembatan aman jendela POS utama <-> proses utama (window.electronAPI)
+    preload-setup.js       -> jembatan aman wizard pengaturan <-> proses utama (window.setupAPI)
+    setup.html / setup-renderer.js   -> wizard pengaturan alamat server (host/contextpath/HTTPS)
+    error.html / error-renderer.js  -> halaman fallback saat server tidak terjangkau
+    build/                -> taruh ikon aplikasi kustom di sini (opsional, lihat BAGIAN 5)
+    .gitignore
+
+  Konfigurasi tersimpan pengguna (BUKAN bagian source, dibuat otomatis saat
+  aplikasi pertama dijalankan) ada di folder data Windows standar, TIDAK di
+  dalam folder proyek ini:
+       %APPDATA%\ais-pos-desktop\config.json
+
+
+================================================================================
+BAGIAN 3 - JALANKAN DALAM MODE PENGEMBANGAN (uji coba, tanpa build installer)
+================================================================================
+
+  cd desktop-pos-electron
+  npm install          (sekali saja, atau tiap kali dependensi berubah)
+  npm start
+
+Yang terjadi:
+  - Pertama kali dijalankan: wizard "Pengaturan Server" muncul -- isi Alamat
+    Host (mis. demo.ecampus.id), Context Path (mis. ecampus, boleh kosong),
+    dan centang/hilangkan HTTPS sesuai server tujuan, lalu klik
+    "Simpan & Buka Aplikasi".
+  - Setelah tersimpan, jendela POS utama terbuka memuat alamat itu -- kasir
+    login dan memakai aplikasi seperti biasa lewat halaman web yang sudah ada.
+  - Untuk mengubah alamat server di lain waktu (tanpa install ulang): buka
+    menu "Pengaturan" (tekan Alt untuk memunculkan menu bar bila tersembunyi)
+    -> "Ubah Alamat Server...".
+
+
+================================================================================
+BAGIAN 4 - BUILD INSTALLER WINDOWS (.exe, NSIS)
+================================================================================
+
+  cd desktop-pos-electron
+  npm install           (bila belum)
+  npm run dist
+
+Hasil: file installer ada di
+       desktop-pos-electron\release\AIS POS Kasir Setup <versi>.exe
+
+Installer ini SUDAH bisa langsung dibagikan ke komputer kasir mana pun
+(Windows 10/11 64-bit) -- pengguna tinggal jalankan .exe itu seperti installer
+aplikasi Windows pada umumnya (boleh pilih folder instalasi, ada shortcut
+Desktop & Start Menu otomatis). Setelah terpasang dan dijalankan pertama kali,
+wizard pengaturan alamat server akan muncul seperti dijelaskan di BAGIAN 3.
+
+
+================================================================================
+BAGIAN 5 - IKON APLIKASI KUSTOM (opsional)
+================================================================================
+
+Belum ada ikon kustom disertakan di scaffold ini (electron-builder akan
+memakai ikon Electron bawaan bila tidak diisi). Untuk memakai ikon institusi
+Anda sendiri:
+
+  1. Siapkan berkas .ico (format Windows icon, disarankan berisi beberapa
+     ukuran sekaligus: 16x16, 32x32, 48x48, 256x256) -- banyak alat konversi
+     PNG->ICO gratis tersedia daring bila Anda hanya punya logo PNG.
+  2. Simpan sebagai desktop-pos-electron/build/icon.ico
+  3. Tambahkan baris berikut ke package.json, di dalam objek "win":
+         "icon": "build/icon.ico"
+  4. Jalankan ulang "npm run dist".
+
+
+================================================================================
+BAGIAN 6 - LAYAR PELANGGAN DUAL-MONITOR: CARA KERJA & CARA UJI
+================================================================================
+
+- Dengan SATU monitor: tombol "Layar Pelanggan" di halaman POS membuka jendela
+  biasa (bisa dipindah/ditutup manual) -- cocok untuk menguji tampilannya
+  tanpa perlu monitor kedua sungguhan.
+- Dengan DUA monitor (kabel HDMI/DisplayPort kedua tersambung, Windows sudah
+  mendeteksinya sebagai "Extend these displays" di Pengaturan Layar): tombol
+  yang SAMA otomatis membuka Layar Pelanggan MEMENUHI monitor kedua secara
+  fullscreen, tanpa perlu digeser manual oleh kasir.
+- Tombol ini bersifat TOGGLE: sekali klik membuka, klik lagi menutup -- baik
+  di mode satu maupun dua monitor.
+- Tidak ada langkah instalasi/pengaturan tambahan untuk fitur ini -- terdeteksi
+  otomatis dari jumlah monitor yang tersambung ke Windows setiap kali tombol
+  ditekan.
+
+
+================================================================================
+BAGIAN 7 - TROUBLESHOOTING
+================================================================================
+
+1) "npm install" gagal / sangat lambat
+   -> Perlu koneksi internet aktif untuk mengunduh paket Electron (berukuran
+      besar). Coba ulang di jaringan yang lebih stabil; hasil unduhan
+      tersimpan di node_modules/ dan tidak perlu diunduh ulang selama folder
+      itu tidak dihapus.
+
+2) Wizard pengaturan muncul TERUS setiap dibuka, padahal sudah pernah diisi
+   -> Cek apakah aplikasi punya izin tulis ke folder
+      %APPDATA%\ais-pos-desktop\ (folder data Windows standar per pengguna,
+      biasanya tidak bermasalah kecuali kebijakan Windows yang sangat ketat).
+
+3) Setelah wizard disimpan, muncul halaman "Tidak Dapat Terhubung ke Server"
+   -> Alamat host/contextpath/protokol yang diisi tidak bisa dijangkau dari
+      komputer ini. Periksa: koneksi internet aktif, alamat host benar (tanpa
+      salah ketik), pilihan HTTPS/HTTP sesuai konfigurasi server (tanyakan
+      admin sistem bila ragu). Klik "Ubah Pengaturan" di halaman itu untuk
+      membuka kembali wizard tanpa perlu menutup aplikasi.
+
+4) Build installer (npm run dist) gagal
+   -> Pastikan dijalankan di komputer WINDOWS (bukan Mac/Linux) -- target NSIS
+      di package.json khusus Windows. Pastikan juga "npm install" sudah
+      selesai TANPA error sebelumnya.
+
+5) "npm install" gagal khusus di paket better-sqlite3 (native module)
+   -> better-sqlite3 punya komponen native (C++) yang butuh binary terkompilasi
+      cocok dengan versi Electron yang dipakai. Skrip "postinstall" di
+      package.json sudah otomatis menjalankan
+      "electron-builder install-app-deps" yang mengunduh/merakit binary yang
+      tepat -- kalau tetap gagal, coba jalankan manual:
+          npx electron-builder install-app-deps
+      Membutuhkan koneksi internet (mengunduh binary prakompilasi).
+
+
+================================================================================
+BAGIAN 8 - PENYIMPANAN TRANSAKSI LOKAL: SQLite (BUKAN sekadar IndexedDB)
+================================================================================
+
+Perbedaan MENDASAR dibanding versi browser biasa:
+
+  - Browser biasa (buka lewat Chrome/Edge tanpa aplikasi desktop ini):
+    transaksi offline tersimpan di IndexedDB milik browser.
+  - Shell desktop ini (Electron): transaksi offline tersimpan di berkas SQLite
+    sungguhan --
+        %APPDATA%\ais-pos-desktop\transaksi.db
+    (plus dua berkas pendamping .db-wal dan .db-shm selagi aplikasi berjalan --
+    itu normal, bagian dari mekanisme Write-Ahead-Log yang membuatnya tahan
+    mati listrik. JANGAN hapus berkas .db-wal/.db-shm secara manual selagi
+    aplikasi berjalan.)
+
+ATURAN PENYIMPANAN (berlaku otomatis, tidak perlu diatur manual):
+  1. SETIAP transaksi -- baik saat internet menyala MAUPUN mati -- SELALU
+     ditulis ke transaksi.db LEBIH DULU sebelum dicoba dikirim ke server. Ini
+     berarti walau internet menyala normal, tetap ada cadangan lokal permanen
+     dari setiap transaksi yang pernah diproses kasir manapun di perangkat ini.
+  2. Begitu server mengonfirmasi transaksi diterima, statusnya berubah jadi
+     SYNCED -- baris itu TIDAK PERNAH DIHAPUS. Seluruh riwayat (baik yang
+     masih menunggu maupun yang sudah lama sukses) tetap ada di berkas yang
+     sama, bisa diperiksa manual kapan saja (mis. pakai aplikasi "DB Browser
+     for SQLite", gratis, tinggal dicari di internet dan dibuka arahkan ke
+     berkas transaksi.db di atas -- read-only saat aplikasi POS sedang
+     berjalan supaya tidak bentrok penulisan).
+  3. Kalau berkas transaksi.db dirasa sudah terlalu besar (bertahun-tahun
+     pemakaian), buka menu "Pengaturan > Arsipkan Transaksi Lama..." di
+     aplikasi -- ini memindahkan (BUKAN menghapus) transaksi yang sudah
+     tersinkron lebih dari 90 hari ke berkas arsip bulanan terpisah
+     (arsip-<tahun>-<bulan>.db di folder yang sama). Transaksi yang masih
+     menunggu sinkron tidak pernah ikut dipindah, jadi aman dijalankan kapan
+     saja tanpa risiko transaksi belum-sinkron "hilang dari radar".
+
+Kenapa ini penting utk skenario mati listrik yang ditanyakan: SQLite dengan
+mode WAL menulis setiap perubahan ke log tambahan dulu sebelum digabung ke
+berkas utama -- kalau listrik mati persis di tengah proses simpan, saat
+komputer menyala lagi SQLite otomatis memulihkan baris yang SUDAH sempat
+tercatat penuh (tidak hilang) dan membuang bersih baris yang belum sempat
+tercatat penuh (tidak korup setengah-setengah). Kasir tinggal buka lagi
+aplikasinya begitu listrik & koneksi ke server pulih -- transaksi yang sempat
+diproses SEBELUM mati listrik tetap ada di antrian, siap dikirim ulang.
+
+================================================================================
+SELESAI
+================================================================================

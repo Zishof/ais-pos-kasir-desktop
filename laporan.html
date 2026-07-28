@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' file: https: data:;">
+<title>POS Kasir - Laporan-Laporan</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-50: #eff6ff;
+        --primary-100: #dbeafe;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --border: #e2e8f0;
+        --bg: #f1f5f9;
+        --surface: #ffffff;
+        --surface-2: #f1f5f9;
+        --danger: #dc2626;
+        --danger-50: #fef2f2;
+        --success: #16a34a;
+        --success-50: #f0fdf4;
+        --warning: #d97706;
+        --warning-50: #fffbeb;
+        --radius: 12px;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+        --shadow-md: 0 4px 14px rgba(15, 23, 42, .08);
+        --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        background: var(--bg); color: var(--ink); height: 100vh; overflow: hidden; font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+    }
+    .shell { display: flex; height: 100vh; }
+
+    /* ---- Sidebar (identik pos.html/ringkasan.html/pesanan.html) ---- */
+    .sidebar { width: 208px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar .brand { display: flex; align-items: center; gap: 9px; padding: 20px 18px 16px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+    .sidebar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .sidebar nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; }
+    .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); text-decoration: none; cursor: default; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+    .nav-item .ico { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-item.aktif { background: var(--primary-50); color: var(--primary); }
+    .nav-item .badge-pesanan-baru { display: none; align-items: center; justify-content: center; margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; }
+    .sidebar .foot { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
+    .sidebar .toko-nama { font-weight: 700; font-size: 13px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+    .status-pill.online { background: var(--success-50); color: var(--success); }
+    .status-pill.offline { background: var(--danger-50); color: var(--danger); }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ---- Main ---- */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .topbar h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+    .topbar .sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .topbar .spacer { flex: 1; }
+    .btn-kecil {
+        background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 9px;
+        padding: 8px 13px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .btn-kecil:hover { border-color: var(--primary); background: var(--primary-50); }
+    .btn-kecil:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-kecil.primer { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-kecil.primer:hover { background: var(--primary-dark); }
+    .btn-kecil.sukses { background: var(--success); color: #fff; border-color: var(--success); }
+    .btn-kecil.bahaya { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+    .konten-scroll { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+    /* ---- Daftar Katalog ---- */
+    #viewKatalog.tersembunyi, #viewLaporan.tersembunyi { display: none; }
+    .kotak-cari { width: 100%; max-width: 480px; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13px; font-family: inherit; margin-bottom: 4px; }
+    .lk-cat { font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin: 20px 0 10px; }
+    .lk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+    .lk-card { cursor: pointer; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start; box-shadow: var(--shadow-sm); transition: .15s; }
+    .lk-card:hover { border-color: var(--primary); box-shadow: 0 8px 22px rgba(37,99,235,.12); transform: translateY(-1px); }
+    .lk-card.eksternal { border-style: dashed; }
+    .lk-ic { width: 38px; height: 38px; border-radius: 10px; flex: 0 0 38px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary-50), var(--primary-100)); color: var(--primary); font-size: 17px; }
+    .lk-tt { font-weight: 700; font-size: 12.5px; color: var(--ink); line-height: 1.3; }
+    .lk-ds { font-size: 11px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+    .lk-kosong { text-align: center; color: var(--muted); padding: 60px 0; font-size: 13px; }
+
+    /* ---- Layar Laporan ---- */
+    .btn-kembali { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--muted); font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 6px 0; margin-bottom: 10px; font-family: inherit; }
+    .btn-kembali:hover { color: var(--primary); }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 16px; }
+    .panel h2 { font-size: 15px; margin: 0 0 3px; font-weight: 800; }
+    .panel .ket { font-size: 11.5px; color: var(--muted); margin: 0 0 14px; }
+    .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end; margin-bottom: 14px; }
+    .filter-grid label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+    .filter-grid input, .filter-grid select { width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 12.5px; font-family: inherit; color: var(--ink); }
+    .filter-grid .chk-line { display: flex; align-items: center; gap: 7px; padding-bottom: 8px; }
+    .filter-grid .chk-line label { margin: 0; font-size: 11.5px; }
+    .filter-aksi { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+    .lk-sheet { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px; }
+    .lk-sheet-kosong { text-align: center; color: var(--muted); padding: 50px 0; font-size: 13px; }
+    .lk-catatan { font-size: 11px; color: var(--faint); font-style: italic; margin-bottom: 10px; }
+    table.lk-tbl { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+    table.lk-tbl thead th { border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); background: var(--surface); color: var(--ink); font-weight: 800; padding: 7px 9px; white-space: nowrap; text-align: left; position: sticky; top: 0; }
+    table.lk-tbl tbody td { border-bottom: 1px solid var(--border); padding: 6px 9px; vertical-align: top; }
+    table.lk-tbl tr.lk-grp td { background: var(--primary-50); font-weight: 800; color: var(--ink); border-top: 1px solid var(--border); }
+    table.lk-tbl tr.lk-sub td { font-weight: 800; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: #fafcff; }
+    table.lk-tbl tfoot td { border-top: 2.5px double var(--ink); font-weight: 800; padding: 8px 9px; color: var(--ink); }
+    .lk-tbl .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .lk-tbl-wrap { max-height: 58vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+
+    #i18nSwitcher { flex-shrink: 0; }
+</style>
+</head>
+<body>
+    <div class="shell">
+        <div class="sidebar">
+            <div class="brand"><span class="logo-dot">&#128179;</span> <span data-i18n="POS Kasir">POS Kasir</span></div>
+            <nav>
+                <a class="nav-item" href="pos.html"><span class="ico">&#128179;</span> <span data-i18n="Kasir">Kasir</span></a>
+                <a class="nav-item" href="ringkasan.html"><span class="ico">&#128202;</span> <span data-i18n="Ringkasan">Ringkasan</span></a>
+                <a class="nav-item" href="pesanan.html"><span class="ico">&#128717;&#65039;</span> <span data-i18n="Pesanan">Pesanan</span></a>
+                <a class="nav-item" href="anggota.html"><span class="ico">&#128100;</span> <span data-i18n="Customer/Anggota">Customer/Anggota</span></a>
+                <a class="nav-item" href="produk.html"><span class="ico">&#128230;</span> <span data-i18n="Produk">Produk</span></a>
+                <a class="nav-item" href="stokopname.html"><span class="ico">&#128203;</span> <span data-i18n="Stok Opname">Stok Opname</span></a>
+                <a class="nav-item" href="kulakan.html"><span class="ico">&#128722;</span> <span data-i18n="Kulakan">Kulakan</span></a>
+                <a class="nav-item" href="diskon.html"><span class="ico">&#127991;&#65039;</span> <span data-i18n="Aturan Diskon">Aturan Diskon</span></a>
+                <a class="nav-item" href="laporan-transaksi.html"><span class="ico">&#128203;</span> <span data-i18n="Laporan Transaksi">Laporan Transaksi</span></a>
+                <button class="nav-item aktif" type="button"><span class="ico">&#128194;</span> <span data-i18n="Laporan-Laporan">Laporan-Laporan</span></button>
+                <a class="nav-item" href="riwayat-sinkronisasi.html"><span class="ico">&#128260;</span> <span data-i18n="Riwayat Sinkronisasi">Riwayat Sinkronisasi</span></a>
+                <a class="nav-item" href="log-error.html"><span class="ico">&#128721;</span> <span data-i18n="Log Error">Log Error</span></a>
+                <a class="nav-item" href="konfigurasi.html"><span class="ico">&#9881;&#65039;</span> <span data-i18n="Konfigurasi">Konfigurasi</span></a>
+            </nav>
+            <div class="foot">
+                <div class="toko-nama" id="namaToko">Kasir</div>
+                <span class="status-pill offline" id="statusPill"><span class="dot"></span><span id="statusTeks" data-i18n="Memeriksa...">Memeriksa...</span></span>
+                <button type="button" class="btn-logout-akun" id="btnLogoutAkun" title="Keluar dari akun ini (kembali ke layar login)" style="display:block;width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid var(--danger,#dc2626);border-radius:8px;background:var(--surface,#fff);color:var(--danger,#dc2626);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128274; <span data-i18n="Logout">Logout</span></button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="topbar">
+                <div>
+                    <h1 data-i18n="Laporan-Laporan e-Kantin">Laporan-Laporan e-Kantin</h1>
+                    <div class="sub" data-i18n="Kumpulan laporan operasional kantin/koperasi -- pilih laporan, atur filter, lalu tampilkan atau unduh.">Kumpulan laporan operasional kantin/koperasi -- pilih laporan, atur filter, lalu tampilkan atau unduh.</div>
+                </div>
+                <div class="spacer"></div>
+                <button class="btn-sync" id="btnBantuan" data-topik="laporan" data-i18n-title="Bantuan / panduan pakai layar ini" title="Bantuan / panduan pakai layar ini">&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
+                <div id="i18nSwitcher"></div>
+            </div>
+
+            <div class="konten-scroll">
+                <div id="viewKatalog">
+                    <input type="text" class="kotak-cari" id="cariLaporan" data-i18n-placeholder="Cari laporan..." placeholder="Cari laporan...">
+                    <div id="katalogWrap"></div>
+                </div>
+
+                <div id="viewLaporan" class="tersembunyi">
+                    <button class="btn-kembali" id="btnKembaliKatalog">&#8592; <span data-i18n="Kembali ke Daftar">Kembali ke Daftar</span></button>
+                    <div class="panel">
+                        <h2 id="repJudul"></h2>
+                        <div class="ket" id="repKet"></div>
+                        <div class="filter-grid" id="filterGrid"></div>
+                        <div class="filter-aksi">
+                            <button class="btn-kecil primer" id="btnTampilkan" data-i18n="Tampilkan">&#128065;&#65039; Tampilkan</button>
+                            <button class="btn-kecil sukses" id="btnCsv" data-i18n="Unduh CSV">&#128190; Unduh CSV</button>
+                            <button class="btn-kecil bahaya" id="btnPdf" data-i18n="Unduh PDF">&#128196; Unduh PDF</button>
+                        </div>
+                    </div>
+                    <div class="lk-sheet" id="lkSheet">
+                        <div class="lk-sheet-kosong" data-i18n="Atur filter lalu klik Tampilkan untuk melihat laporan.">Atur filter lalu klik Tampilkan untuk melihat laporan.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="error-capture.js"></script>
+    <script src="i18n.js"></script>
+    <script src="pesan-detail.js"></script>
+    <script src="bantuan.js"></script>
+    <script src="akses-menu.js"></script>
+    <script src="logout-akun.js"></script>
+    <script src="branding.js"></script>
+<script src="pesanan-badge.js"></script>
+    <script src="laporan-renderer.js"></script>
+</body>
+</html>

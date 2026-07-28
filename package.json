@@ -1,0 +1,118 @@
+{
+  "name": "ais-pos-desktop",
+  "version": "1.0.57",
+  "description": "Aplikasi Desktop POS Kasir AIS (Enterprise Education) - shell Electron dual-layar (layar kasir + layar pelanggan), dengan wizard pengaturan alamat server (host/contextpath/HTTPS) saat pertama kali dijalankan.",
+  "main": "main.js",
+  "author": "Enterprise Education",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "postinstall": "electron-builder install-app-deps",
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --publish never",
+    "dist:dir": "electron-builder --win dir"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "html5-qrcode": "^2.3.8",
+    "jsbarcode": "^3.12.3"
+  },
+  "build": {
+    "appId": "id.ecampus.ais.pos.desktop",
+    "productName": "AIS POS Kasir",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Zishof",
+        "repo": "ais-pos-kasir-desktop"
+      }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "preload-setup.js",
+      "setup.html",
+      "setup-renderer.js",
+      "preload-login.js",
+      "login.html",
+      "login-renderer.js",
+      "pos.html",
+      "pos-renderer.js",
+      "pesan-detail.js",
+      "bantuan.js",
+      "akses-menu.js",
+      "logout-akun.js",
+      "struk.js",
+      "preload-struk-preview.js",
+      "preload-pricetag-preview.js",
+      "i18n.js",
+      "laporan.html",
+      "laporan-renderer.js",
+      "preload-customer.js",
+      "customer.html",
+      "customer-renderer.js",
+      "pesanan.html",
+      "pesanan-renderer.js",
+      "anggota.html",
+      "anggota-renderer.js",
+      "diskon.html",
+      "diskon-renderer.js",
+      "laporan-transaksi.html",
+      "laporan-transaksi-renderer.js",
+      "produk.html",
+      "produk-renderer.js",
+      "stokopname.html",
+      "stokopname-renderer.js",
+      "kulakan.html",
+      "kulakan-renderer.js",
+      "ringkasan.html",
+      "ringkasan-renderer.js",
+      "riwayat-sinkronisasi.html",
+      "riwayat-sinkronisasi-renderer.js",
+      "error.html",
+      "error-renderer.js",
+      "local-db.js",
+      "log-error.html",
+      "log-error-renderer.js",
+      "error-capture.js",
+      "konfigurasi.html",
+      "konfigurasi-renderer.js",
+      "branding.js",
+      "pesanan-badge.js",
+      "vendor/jsbarcode.min.js",
+      "vendor/html5-qrcode.min.js",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AIS POS Kasir",
+      "artifactName": "AIS-POS-Kasir-Setup-${version}.${ext}"
+    }
+  }
+}

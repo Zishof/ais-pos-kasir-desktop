@@ -18,10 +18,17 @@ Aplikasi kasir Kantin/Koperasi berbasis **Electron** yang berjalan sebagai aplik
 ### Kasir
 
 - Katalog produk lengkap dengan kategori — kategori yang ditampilkan hanya yang benar-benar punya produk aktif di toko bersangkutan (diturunkan dari daftar produk yang tampil, bukan daftar kategori mentah), jadi setiap kategori yang diklik pasti berisi.
+- **Stok realtime** — setiap kartu produk menampilkan badge stok saat ini ("Habis" bila 0, "Stok N" bila menipis), langsung dari server tanpa perlu buka tab terpisah.
 - Gambar produk otomatis diunduh & disimpan ke perangkat saat online, sehingga tetap tampil walau sedang offline (fallback ke avatar warna+inisial bila belum pernah berhasil diunduh).
 - Pencarian produk cepat, keranjang dengan pengaturan jumlah per item.
 - Checkout tunai maupun non-tunai, dengan perhitungan kembalian otomatis.
-- Pembayaran pakai **Saldo Member** — saldo dihitung ulang secara *real-time* dari server setiap checkout (bukan angka lama hasil pencarian), termasuk pengecekan saldo minimal yang wajib mengendap sesuai jenis keanggotaan member.
+- **Cek Saldo Member** — begitu member dipilih, saldo terkininya langsung tampil di kartu member (termasuk batas minimal yang wajib mengendap), tanpa harus memulai checkout dulu.
+- Pembayaran pakai **Saldo Member** — saldo dihitung ulang secara *real-time* dari server setiap checkout (bukan angka lama hasil pencarian), termasuk pengecekan saldo minimal yang wajib mengendap sesuai jenis keanggotaan member; pesan saldo tidak cukup menyertakan nama member yang bersangkutan.
+- **Top Up Saldo lewat Kasir** — kasir yang punya hak akses (sama dengan menu "Manajemen Saldo (Deposit)") bisa langsung mengisi saldo tunai member terpilih dari layar ini, tanpa berpindah menu; saldo di kartu member ikut ter-refresh begitu top up berhasil.
+- **Sesi Kasir (Buka/Tutup Kas)** — tombol di topbar menampilkan status kas saat ini (tertutup, atau terbuka + kas berjalan) dan membuka form Buka Kas (modal awal) / Tutup Kas (uang fisik + selisih otomatis dihitung); bila toko mengaktifkan gerbang wajibnya, checkout otomatis ditolak selama kas belum dibuka.
+- **Aturan Diskon otomatis** — keranjang dievaluasi ulang setiap berubah (produk/jumlah/member) memakai aturan diskon aktif dari server (per kategori/member/periode dsb.), diskon & cashback langsung terlihat sebelum checkout.
+- **Tahan/Simpan Keranjang** — keranjang yang sedang berjalan bisa ditahan sementara (mis. pelanggan lupa dompet) dan dilanjutkan lagi nanti dari menu "Keranjang Tertahan", lengkap dengan member dan metode bayar yang sudah dipilih sebelumnya.
+- **Cetak Struk** — pratinjau struk dengan toolbar sendiri (bukan dialog cetak bawaan OS) muncul begitu transaksi selesai; cetak fisik baru terjadi setelah tombol "Cetak" di pratinjau ditekan.
 - Transaksi **offline-first**: begitu tombol Bayar ditekan, transaksi langsung tersimpan lokal (SQLite) terlebih dahulu sebelum dikirim ke server — kalau ternyata sedang offline, transaksi tetap aman dan otomatis disinkronkan begitu koneksi kembali, bisa juga dipicu manual lewat tombol "Sinkronkan".
 
 ### Ringkasan
@@ -31,6 +38,7 @@ Ringkasan performa toko hari berjalan: total omzet, jumlah transaksi, dan daftar
 ### Pesanan Online
 
 - Daftar pesanan yang dibuat member lewat kanal online, dipisah antara yang menunggu pembayaran dan yang sudah lunas.
+- **Popup otomatis** — layar Kasir memeriksa pesanan online baru setiap ~20 detik; begitu ada pesanan baru dari pembeli (bukan keranjang yang ditahan kasir sendiri), jendela pop-up langsung muncul menampilkan barang yang dipesan, nama pembeli, dan waktu pemesanan, tanpa kasir perlu berpindah tab.
 - Verifikasi & penyelesaian pembayaran langsung dari aplikasi kasir (reuse aturan checkout yang sama persis dengan Kasir).
 - Pembatalan pesanan yang belum dibayar.
 
@@ -93,4 +101,4 @@ npm run dist:dir    # build folder aplikasi tanpa installer, untuk uji cepat
 
 ## Cakupan yang Belum Tersedia
 
-Diskon otomatis, cetak struk langsung, dan gerbang Sesi Kas Kasir masih belum tersedia di layar lokal ini — ketiganya tetap bisa diakses lewat menu **"Buka Aplikasi Lengkap (Online)"** di dalam aplikasi, yang memuat versi web penuh dari server.
+Per rilis saat ini, layar Kasir lokal sudah mencakup seluruh alur checkout inti (termasuk diskon otomatis, tahan/simpan keranjang, dan cetak struk — lihat bagian [Fitur](#fitur) di atas) serta menu Pesanan/Ringkasan/Stok Opname/Produk/Kulakan/Aturan Diskon/Laporan/Customer-Anggota, sejajar dengan versi JSP/web. Menu **"Buka Aplikasi Lengkap (Online)"** tetap tersedia sebagai jalan pintas ke versi web penuh bila suatu saat dibutuhkan fitur admin yang belum diminta untuk diporting ke sini.

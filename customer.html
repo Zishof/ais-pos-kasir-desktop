@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' file: https: data:;">
+<title>Layar Pelanggan</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-50: #eff6ff;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --border: #e2e8f0;
+        --bg: #f1f5f9;
+        --surface: #ffffff;
+        --danger: #dc2626;
+        --danger-50: #fef2f2;
+        --success: #16a34a;
+        --success-50: #f0fdf4;
+        --radius: 16px;
+        --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        background: linear-gradient(160deg, var(--bg), #e2e8f0); color: var(--ink);
+        height: 100vh; width: 100vw; overflow: hidden; -webkit-font-smoothing: antialiased;
+    }
+    .panel { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; }
+
+    /* ---- Idle ---- */
+    #panelIdle { gap: 22px; text-align: center; }
+    #panelIdle .logo-dot {
+        width: 96px; height: 96px; border-radius: 26px; background: linear-gradient(135deg, var(--primary), #7c3aed);
+        display: flex; align-items: center; justify-content: center; font-size: 46px; box-shadow: var(--shadow-lg);
+    }
+    #panelIdle h1 { font-size: 34px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+    #panelIdle p { font-size: 16px; color: var(--muted); margin: 0; }
+
+    /* ---- Keranjang ---- */
+    #panelKeranjang { align-items: stretch; padding: 40px 60px; }
+    .kr-header { text-align: center; margin-bottom: 18px; flex-shrink: 0; }
+    .kr-header .toko { font-size: 24px; font-weight: 800; }
+    .kr-header .member { font-size: 15px; color: var(--primary); font-weight: 700; margin-top: 4px; display: none; }
+    .kr-body {
+        flex: 1; min-height: 0; overflow-y: auto; background: var(--surface); border-radius: var(--radius);
+        box-shadow: var(--shadow-lg); padding: 8px 32px; max-width: 720px; width: 100%; margin: 0 auto;
+    }
+    .baris-item { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--border); font-size: 17px; }
+    .baris-item:last-child { border-bottom: none; }
+    .baris-item .nama { flex: 1; font-weight: 700; }
+    .baris-item .qty { color: var(--muted); font-weight: 700; }
+    .baris-item .harga { font-weight: 800; color: var(--primary); min-width: 130px; text-align: right; }
+    .kr-footer {
+        max-width: 720px; width: 100%; margin: 18px auto 0; background: var(--surface); border-radius: var(--radius);
+        box-shadow: var(--shadow-lg); padding: 18px 32px; flex-shrink: 0;
+    }
+    .kr-baris { display: flex; justify-content: space-between; font-size: 16px; color: var(--muted); padding: 4px 0; }
+    .kr-baris.total { font-size: 28px; font-weight: 800; color: var(--ink); padding-top: 10px; margin-top: 6px; border-top: 1px dashed var(--border); }
+
+    /* ---- Sukses ---- */
+    #panelSukses { gap: 16px; text-align: center; }
+    #panelSukses .centang {
+        width: 110px; height: 110px; border-radius: 50%; background: var(--success-50); color: var(--success);
+        display: flex; align-items: center; justify-content: center; font-size: 56px; box-shadow: var(--shadow-lg);
+    }
+    #panelSukses h1 { font-size: 30px; margin: 6px 0 0; font-weight: 800; }
+    #panelSukses .rincian { font-size: 18px; color: var(--muted); }
+    #panelSukses .rincian b { color: var(--ink); }
+    /* Ucapan terima kasih (dikonfigurasi per-toko) -- SENGAJA jauh lebih besar & mencolok drpd rincian
+       transaksi di atasnya (permintaan eksplisit "buat Ucapan Terima kasih lebih besar/lebih terlihat"):
+       ini kalimat TERAKHIR yg dibaca pelanggan sebelum menjauh dari layar, jadi diberi bobot visual plg
+       tinggi di panel ini setelah tanda centang sukses. */
+    #panelSukses .ucapan-terima-kasih {
+        font-size: 26px; font-weight: 800; color: var(--primary); max-width: 640px; margin: 14px 0 0;
+        line-height: 1.35; text-wrap: balance;
+    }
+
+    /* ---- Overlay PIN ---- */
+    .overlay-pin {
+        position: fixed; inset: 0; background: rgba(15, 23, 42, .68); display: none;
+        align-items: center; justify-content: center; z-index: 90;
+    }
+    .overlay-pin.tampil { display: flex; }
+    .kartu-pin { background: var(--surface); border-radius: 24px; box-shadow: var(--shadow-lg); padding: 32px 36px; width: 380px; max-width: 92vw; text-align: center; }
+    .kartu-pin .judul { font-size: 15px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+    .kartu-pin .member { font-size: 19px; font-weight: 800; margin-bottom: 18px; }
+    .pin-dots { font-size: 28px; letter-spacing: 10px; color: var(--primary); min-height: 36px; margin-bottom: 6px; }
+    .pin-error { min-height: 20px; font-size: 13px; font-weight: 700; color: var(--danger); margin-bottom: 14px; }
+    .pin-error.sukses { color: var(--success); }
+    .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .pin-pad button {
+        padding: 16px 0; font-size: 20px; font-weight: 800; border-radius: 14px; border: 1.5px solid var(--border);
+        background: var(--bg); color: var(--ink); cursor: pointer;
+    }
+    .pin-pad button:hover { border-color: var(--primary); background: var(--primary-50); }
+    .pin-pad button.kosong { visibility: hidden; cursor: default; }
+    .pin-aksi { display: flex; gap: 10px; }
+    .pin-aksi button {
+        flex: 1; padding: 13px; border-radius: 12px; border: none; font-size: 14px; font-weight: 800; cursor: pointer;
+    }
+    #btnPinOk { background: var(--primary); color: #fff; }
+    #btnPinOk:hover { background: var(--primary-dark); }
+    #btnPinBatal { background: var(--danger-50); color: var(--danger); }
+    #btnPinBatal:hover { background: #fee2e2; }
+</style>
+</head>
+<body>
+    <div class="panel" id="panelIdle">
+        <div class="logo-dot">&#128179;</div>
+        <h1 id="namaTokoIdle">POS Kasir</h1>
+        <p data-i18n="Selamat datang! Silakan tunjukkan belanjaan Anda ke kasir.">Selamat datang! Silakan tunjukkan belanjaan Anda ke kasir.</p>
+    </div>
+
+    <div class="panel" id="panelKeranjang">
+        <div class="kr-header">
+            <div class="toko" id="namaTokoBesar">Kasir</div>
+            <div class="member" id="memberNamaTampil"></div>
+        </div>
+        <div class="kr-body"><div id="daftarItemPelanggan"></div></div>
+        <div class="kr-footer">
+            <div class="kr-baris"><span data-i18n="Subtotal">Subtotal</span><span id="subtotalPelanggan">Rp 0</span></div>
+            <div class="kr-baris"><span data-i18n="Pajak">Pajak</span><span id="pajakPelanggan">Rp 0</span></div>
+            <div class="kr-baris total"><span data-i18n="Total">Total</span><span id="totalPelanggan">Rp 0</span></div>
+        </div>
+    </div>
+
+    <div class="panel" id="panelSukses">
+        <div class="centang">&#10003;</div>
+        <h1 data-i18n="Pembayaran Berhasil">Pembayaran Berhasil</h1>
+        <div class="rincian"><span data-i18n="Total">Total</span> <b id="suksesTotal">Rp 0</b> &bull; <b id="suksesMetode">-</b></div>
+        <p class="ucapan-terima-kasih" id="suksesUcapan">Terima Kasih Telah Berbelanja, Semoga Belanja Berkah Berpahala</p>
+    </div>
+
+    <div class="overlay-pin" id="overlayPin">
+        <div class="kartu-pin">
+            <div class="judul">Masukkan PIN Transaksi</div>
+            <div class="member" id="pinMemberNama">-</div>
+            <div class="pin-dots" id="pinDots">&#9675;&#9675;&#9675;&#9675;</div>
+            <div class="pin-error" id="pinError"></div>
+            <div class="pin-pad" id="pinPad">
+                <button type="button" data-digit="1">1</button>
+                <button type="button" data-digit="2">2</button>
+                <button type="button" data-digit="3">3</button>
+                <button type="button" data-digit="4">4</button>
+                <button type="button" data-digit="5">5</button>
+                <button type="button" data-digit="6">6</button>
+                <button type="button" data-digit="7">7</button>
+                <button type="button" data-digit="8">8</button>
+                <button type="button" data-digit="9">9</button>
+                <button type="button" class="kosong" tabindex="-1"></button>
+                <button type="button" data-digit="0">0</button>
+                <button type="button" id="btnPinHapus">&#9003;</button>
+            </div>
+            <div class="pin-aksi">
+                <button type="button" id="btnPinBatal">Batalkan</button>
+                <button type="button" id="btnPinOk">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="i18n.js"></script>
+    <script src="customer-renderer.js"></script>
+</body>
+</html>

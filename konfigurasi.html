@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' file: https: data:;">
+<title>POS Kasir - Konfigurasi</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-50: #eff6ff;
+        --primary-100: #dbeafe;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --border: #e2e8f0;
+        --bg: #f1f5f9;
+        --surface: #ffffff;
+        --danger: #dc2626;
+        --danger-50: #fef2f2;
+        --success: #16a34a;
+        --success-50: #f0fdf4;
+        --warning: #d97706;
+        --warning-50: #fffbeb;
+        --radius: 12px;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+        --shadow-md: 0 4px 14px rgba(15, 23, 42, .08);
+        --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        background: var(--bg); color: var(--ink); height: 100vh; overflow: hidden; font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+    }
+    .shell { display: flex; height: 100vh; }
+
+    /* ---- Sidebar (identik pos.html) ---- */
+    .sidebar { width: 208px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar .brand { display: flex; align-items: center; gap: 9px; padding: 20px 18px 16px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+    .sidebar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; overflow: hidden; }
+    .sidebar .brand .logo-dot img { width: 100%; height: 100%; object-fit: cover; }
+    .sidebar nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+    .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); text-decoration: none; cursor: default; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+    .nav-item .ico { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-item.aktif { background: var(--primary-50); color: var(--primary); }
+    .nav-item:not(.aktif) { cursor: pointer; }
+    .nav-item:not(.aktif):hover { background: var(--bg); color: var(--ink); }
+    .nav-item .badge-pesanan-baru { display: none; align-items: center; justify-content: center; margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; }
+    .sidebar .foot { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
+    .sidebar .toko-nama { font-weight: 700; font-size: 13px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+    .status-pill.online { background: var(--success-50); color: var(--success); }
+    .status-pill.offline { background: var(--danger-50); color: var(--danger); }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ---- Main ---- */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .topbar h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+    .topbar .spacer { flex: 1; }
+    .btn-sync, .btn-kecil { background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .btn-sync:hover, .btn-kecil:hover { border-color: var(--primary); background: var(--primary-50); }
+    .btn-sync:disabled, .btn-kecil:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-kecil.primer { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-kecil.primer:hover { background: var(--primary-dark); }
+
+    .konten-scroll { flex: 1; overflow-y: auto; padding: 18px 24px; display: flex; flex-direction: column; gap: 18px; }
+    .kartu-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px; }
+    .kartu-panel .judul-seksi { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .kartu-panel .judul-seksi h2 { font-size: 14.5px; margin: 0; font-weight: 800; }
+    .kartu-panel .subjudul-seksi { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+
+    .field label { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
+    .field input, .field select, .field textarea { width: 100%; padding: 9px 11px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; font-family: inherit; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); }
+    .field input:disabled, .field textarea:disabled { background: var(--bg); color: var(--muted); cursor: not-allowed; }
+    .field textarea { resize: vertical; min-height: 56px; }
+    .grid-field { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-field.penuh { grid-column: 1 / -1; }
+    .remember-row { display: flex; align-items: center; gap: 8px; }
+    .remember-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
+    .remember-row label { margin: 0; font-weight: 600; font-size: 12.5px; cursor: pointer; }
+
+    .logo-baris { display: flex; align-items: center; gap: 16px; }
+    .logo-preview { width: 64px; height: 64px; border-radius: 14px; background: var(--bg); border: 1.5px dashed var(--border); display: flex; align-items: center; justify-content: center; font-size: 26px; overflow: hidden; flex-shrink: 0; }
+    .logo-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+    .catatan-akses { font-size: 11.5px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 11px; margin-bottom: 12px; }
+    .catatan-akses.kunci { color: var(--warning); background: var(--warning-50); }
+
+    .tabel-dasbor { width: 100%; border-collapse: collapse; }
+    .tabel-dasbor th { text-align: left; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); background: var(--bg); padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    .tabel-dasbor td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .tabel-dasbor tr:last-child td { border-bottom: none; }
+    .scroll-tabel { overflow-x: auto; }
+
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+    .badge.hijau { background: var(--success-50); color: var(--success); }
+    .badge.abu { background: var(--bg); color: var(--muted); }
+    .badge.biru { background: var(--primary-50); color: var(--primary); }
+    .badge.ungu { background: #f5f3ff; color: #7c3aed; }
+
+    .daftar-kosong { text-align: center; color: var(--faint); padding: 30px 16px; font-size: 12.5px; }
+    .daftar-kosong .ico { font-size: 26px; display: block; margin-bottom: 8px; opacity: .5; }
+
+    /* ---- Modal tambah/ubah akun pedagang ---- */
+    .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: none; align-items: center; justify-content: center; z-index: 60; }
+    .overlay.tampil { display: flex; }
+    .modal-metode { background: var(--surface); border-radius: 16px; width: 440px; max-width: 92vw; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+    .modal-metode .kepala { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; position: sticky; top: 0; background: var(--surface); }
+    .modal-metode .kepala h3 { margin: 0; font-size: 15.5px; font-weight: 800; }
+    .modal-metode .tutup { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--muted); padding: 4px; }
+    button.btn-sesikas-aksi { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 10px; font-size: 13.5px; font-weight: 800; cursor: pointer; }
+    button.btn-sesikas-aksi:hover { background: var(--primary-dark); }
+    button.btn-sesikas-aksi:disabled { opacity: .6; cursor: not-allowed; }
+
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff; box-shadow: var(--shadow-lg); z-index: 200; max-width: 480px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .toast.tampil { opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: #334155; }
+</style>
+</head>
+<body>
+    <div class="shell">
+        <div class="sidebar">
+            <div class="brand"><span class="logo-dot" id="brandLogoDot">&#128179;</span> <span id="brandJudul" data-i18n="POS Kasir">POS Kasir</span></div>
+            <nav>
+                <a class="nav-item" href="pos.html"><span class="ico">&#128179;</span> <span data-i18n="Kasir">Kasir</span></a>
+                <a class="nav-item" href="ringkasan.html"><span class="ico">&#128202;</span> <span data-i18n="Ringkasan">Ringkasan</span></a>
+                <a class="nav-item" href="pesanan.html"><span class="ico">&#128717;&#65039;</span> <span data-i18n="Pesanan">Pesanan</span></a>
+                <a class="nav-item" href="anggota.html"><span class="ico">&#128100;</span> <span data-i18n="Customer/Anggota">Customer/Anggota</span></a>
+                <a class="nav-item" href="produk.html"><span class="ico">&#128230;</span> <span data-i18n="Produk">Produk</span></a>
+                <a class="nav-item" href="stokopname.html"><span class="ico">&#128203;</span> <span data-i18n="Stok Opname">Stok Opname</span></a>
+                <a class="nav-item" href="kulakan.html"><span class="ico">&#128722;</span> <span data-i18n="Kulakan">Kulakan</span></a>
+                <a class="nav-item" href="diskon.html"><span class="ico">&#127991;&#65039;</span> <span data-i18n="Aturan Diskon">Aturan Diskon</span></a>
+                <a class="nav-item" href="laporan-transaksi.html"><span class="ico">&#128203;</span> <span data-i18n="Laporan Transaksi">Laporan Transaksi</span></a>
+                <a class="nav-item" href="laporan.html"><span class="ico">&#128194;</span> <span data-i18n="Laporan-Laporan">Laporan-Laporan</span></a>
+                <a class="nav-item" href="riwayat-sinkronisasi.html"><span class="ico">&#128260;</span> <span data-i18n="Riwayat Sinkronisasi">Riwayat Sinkronisasi</span></a>
+                <a class="nav-item" href="log-error.html"><span class="ico">&#128721;</span> <span data-i18n="Log Error">Log Error</span></a>
+                <button class="nav-item aktif" type="button"><span class="ico">&#9881;&#65039;</span> <span data-i18n="Konfigurasi">Konfigurasi</span></button>
+            </nav>
+            <div class="foot">
+                <div class="toko-nama" id="namaToko">Kasir</div>
+                <span class="status-pill offline" id="statusPill"><span class="dot"></span><span id="statusTeks" data-i18n="Memeriksa...">Memeriksa...</span></span>
+                <button type="button" class="btn-logout-akun" id="btnLogoutAkun" title="Keluar dari akun ini (kembali ke layar login)" style="display:block;width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid var(--danger,#dc2626);border-radius:8px;background:var(--surface,#fff);color:var(--danger,#dc2626);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128274; <span data-i18n="Logout">Logout</span></button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="topbar">
+                <h1 data-i18n="Konfigurasi">Konfigurasi</h1>
+                <div class="spacer"></div>
+                <button class="btn-sync" id="btnBantuan" data-topik="konfigurasi" data-i18n-title="Bantuan / panduan pakai layar ini" title="Bantuan / panduan pakai layar ini">&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
+                <div id="i18nSwitcher"></div>
+            </div>
+
+            <div class="konten-scroll">
+                <!-- ==== Tampilan Aplikasi (lokal) ==== -->
+                <div class="kartu-panel">
+                    <div class="judul-seksi"><h2>&#127912; Tampilan Aplikasi</h2></div>
+                    <p class="subjudul-seksi">Judul jendela &amp; logo sidebar -- tersimpan LOKAL di perangkat ini saja, tidak dikirim ke server.</p>
+                    <div style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="field" style="max-width:360px;">
+                            <label>Judul Aplikasi</label>
+                            <input type="text" id="inputJudulAplikasi" placeholder="POS Kasir">
+                        </div>
+                        <div class="logo-baris">
+                            <div class="logo-preview" id="logoPreview">&#128179;</div>
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <button type="button" class="btn-kecil" id="btnPilihLogo">Pilih Berkas Logo...</button>
+                                <span style="font-size:11px;color:var(--muted);">PNG/JPG/GIF/WEBP, disalin ke folder aplikasi.</span>
+                            </div>
+                        </div>
+                        <div><button type="button" class="btn-kecil primer" id="btnSimpanBranding" style="width:auto;">Simpan Tampilan</button></div>
+                    </div>
+                </div>
+
+                <!-- ==== Identitas Mesin POS (lokal) ==== -->
+                <div class="kartu-panel">
+                    <div class="judul-seksi"><h2>&#128421;&#65039; Identitas Mesin POS</h2></div>
+                    <p class="subjudul-seksi">Nama mesin ini -- dipakai membedakan transaksi/pesanan yang masuk dari perangkat ini vs perangkat POS lain di toko yang sama (mis. "Kasir Depan", "Kasir Drive-Thru"). Tersimpan LOKAL di perangkat ini saja.</p>
+                    <div style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="field" style="max-width:360px;">
+                            <label>Nama Mesin</label>
+                            <input type="text" id="inputNamaMesin" placeholder="Contoh: Kasir Depan">
+                        </div>
+                        <p style="font-size:11px;color:var(--muted);margin:0;">ID unik perangkat: <code id="teksIdMesin">-</code></p>
+                        <div><button type="button" class="btn-kecil primer" id="btnSimpanNamaMesin" style="width:auto;">Simpan Nama Mesin</button></div>
+                    </div>
+                </div>
+
+                <!-- ==== Profil Toko (server) ==== -->
+                <div class="kartu-panel">
+                    <div class="judul-seksi"><h2>&#127970; Profil Toko</h2></div>
+                    <p class="subjudul-seksi">Data toko tersimpan di server -- dipakai di struk, laporan, dan layar Manajemen Pedagang (web).</p>
+                    <div id="catatanAksesToko" class="catatan-akses kunci" style="display:none;">Anda hanya bisa melihat profil toko -- hanya Supervisor Pedagang atau Admin yang bisa mengubahnya.</div>
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        <div class="grid-field">
+                            <div class="field"><label>Nama Toko</label><input type="text" id="tpNama"></div>
+                            <div class="field"><label>Kode Toko</label><input type="text" id="tpKode" disabled></div>
+                        </div>
+                        <div class="field grid-field penuh"><label>Alamat</label><textarea id="tpAlamat"></textarea></div>
+                        <div class="grid-field">
+                            <div class="field"><label>Kota</label><input type="text" id="tpKota"></div>
+                            <div class="field"><label>Kode Pos</label><input type="text" id="tpKodePos"></div>
+                        </div>
+                        <div class="grid-field">
+                            <div class="field"><label>Telp</label><input type="text" id="tpTelp"></div>
+                            <div class="field"><label>Email</label><input type="email" id="tpEmail"></div>
+                        </div>
+                        <div class="grid-field">
+                            <div class="field"><label>Nama PIC</label><input type="text" id="tpPicNama"></div>
+                            <div class="field"><label>HP PIC</label><input type="text" id="tpPicHp"></div>
+                        </div>
+                        <div class="grid-field">
+                            <div class="field"><label>NPWP</label><input type="text" id="tpNpwp"></div>
+                            <div class="field"><label>Jam Operasional</label><input type="text" id="tpJamOperasional" placeholder="Contoh: 08.00 - 21.00"></div>
+                        </div>
+                        <div class="field grid-field penuh"><label>Keterangan</label><textarea id="tpKeterangan"></textarea></div>
+                        <div class="field grid-field penuh">
+                            <label>Ucapan Terima Kasih (Struk &amp; Layar Customer)</label>
+                            <textarea id="tpPesanTerimaKasih" placeholder="Terima Kasih Telah Berbelanja, Semoga Belanja Berkah Berpahala"></textarea>
+                        </div>
+                        <div><button type="button" class="btn-kecil primer" id="btnSimpanProfilToko" style="width:auto;">Simpan Profil Toko</button></div>
+                    </div>
+                </div>
+
+                <!-- ==== Akun Pedagang ==== -->
+                <div class="kartu-panel">
+                    <div class="judul-seksi">
+                        <h2>&#128101; Akun Pedagang</h2>
+                        <button type="button" class="btn-sync" id="btnTambahPedagang" style="display:none;">&#10133; Tambah Akun</button>
+                    </div>
+                    <p class="subjudul-seksi">Akun kasir yang bisa login ke toko ini.</p>
+                    <div id="catatanAksesPedagang" class="catatan-akses" style="display:none;">Anda hanya bisa melihat daftar akun -- hanya Supervisor Pedagang atau Admin yang bisa menambah/mengubah.</div>
+                    <div class="scroll-tabel">
+                        <table class="tabel-dasbor" id="tabelPedagang"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlayFormPedagang">
+        <div class="modal-metode">
+            <div class="kepala">
+                <h3 id="judulFormPedagang">Tambah Akun Pedagang</h3>
+                <button type="button" class="tutup" id="btnTutupFormPedagang">&#10005;</button>
+            </div>
+            <div style="padding:4px 20px 20px;display:flex;flex-direction:column;gap:12px;">
+                <div class="field" id="wrapPedagangUserid"><label>Userid</label><input type="text" id="fpUserid"></div>
+                <div class="field"><label>Nama</label><input type="text" id="fpNama"></div>
+                <div class="field" id="wrapPedagangPassword"><label id="labelPedagangPassword">Kata Sandi (min. 6 karakter)</label><input type="password" id="fpPassword"></div>
+                <div class="field" id="wrapPedagangTokoId"><label>ID Toko</label><input type="number" id="fpTokoId" placeholder="Lihat daftar toko di aplikasi web"></div>
+                <div class="field"><label>Keterangan</label><input type="text" id="fpKeterangan"></div>
+                <div class="remember-row"><input type="checkbox" id="fpAktif" checked><label for="fpAktif">Aktif</label></div>
+                <div class="remember-row" id="wrapPedagangSupervisor" style="display:none;"><input type="checkbox" id="fpSupervisor"><label for="fpSupervisor">Supervisor (boleh kelola akun pedagang lain di tokonya)</label></div>
+                <div id="wrapPedagangAksesMenu" style="border-top:1px solid var(--border);padding-top:10px;">
+                    <label style="display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:6px;">Hak Akses Menu (menu yang boleh dilihat akun ini -- default semua aktif, terpisah dari status Supervisor di atas)</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;">
+                        <div class="remember-row"><input type="checkbox" id="fpAksesKasir" checked><label for="fpAksesKasir">Kasir</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesRingkasan" checked><label for="fpAksesRingkasan">Ringkasan</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesPesanan" checked><label for="fpAksesPesanan">Pesanan</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesAnggota" checked><label for="fpAksesAnggota">Customer/Anggota</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesProduk" checked><label for="fpAksesProduk">Produk</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesStokOpname" checked><label for="fpAksesStokOpname">Stok Opname</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesKulakan" checked><label for="fpAksesKulakan">Kulakan</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesDiskon" checked><label for="fpAksesDiskon">Aturan Diskon</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesLaporanTransaksi" checked><label for="fpAksesLaporanTransaksi">Laporan Transaksi</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesLaporan" checked><label for="fpAksesLaporan">Laporan-Laporan</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesRiwayatSinkronisasi" checked><label for="fpAksesRiwayatSinkronisasi">Riwayat Sinkronisasi</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesLogError" checked><label for="fpAksesLogError">Log Error</label></div>
+                        <div class="remember-row"><input type="checkbox" id="fpAksesKonfigurasi" checked><label for="fpAksesKonfigurasi">Konfigurasi</label></div>
+                    </div>
+                </div>
+                <button type="button" class="btn-sesikas-aksi" id="btnSimpanPedagang" style="margin-top:6px;">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="error-capture.js"></script>
+    <script src="i18n.js"></script>
+    <script src="pesan-detail.js"></script>
+    <script src="bantuan.js"></script>
+    <script src="akses-menu.js"></script>
+    <script src="logout-akun.js"></script>
+    <script src="branding.js"></script>
+<script src="pesanan-badge.js"></script>
+    <script src="konfigurasi-renderer.js"></script>
+</body>
+</html>

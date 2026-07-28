@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' file: https: data:;">
+<title>POS Kasir - Laporan Transaksi</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-50: #eff6ff;
+        --primary-100: #dbeafe;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --border: #e2e8f0;
+        --bg: #f1f5f9;
+        --surface: #ffffff;
+        --danger: #dc2626;
+        --danger-50: #fef2f2;
+        --success: #16a34a;
+        --success-50: #f0fdf4;
+        --warning: #d97706;
+        --warning-50: #fffbeb;
+        --radius: 12px;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+        --shadow-md: 0 4px 14px rgba(15, 23, 42, .08);
+        --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        background: var(--bg); color: var(--ink); height: 100vh; overflow: hidden; font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+    }
+    .shell { display: flex; height: 100vh; }
+
+    /* ---- Sidebar (identik pos.html/ringkasan.html) ---- */
+    .sidebar { width: 208px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar .brand { display: flex; align-items: center; gap: 9px; padding: 20px 18px 16px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+    .sidebar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .sidebar nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; }
+    .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); text-decoration: none; cursor: default; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+    .nav-item .ico { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-item.aktif { background: var(--primary-50); color: var(--primary); }
+    .nav-item .badge-pesanan-baru { display: none; align-items: center; justify-content: center; margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; }
+    .sidebar .foot { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
+    .sidebar .toko-nama { font-weight: 700; font-size: 13px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+    .status-pill.online { background: var(--success-50); color: var(--success); }
+    .status-pill.offline { background: var(--danger-50); color: var(--danger); }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ---- Main ---- */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 14px 24px 0; background: var(--surface); }
+    .topbar h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+    .topbar .spacer { flex: 1; }
+    .btn-sync, .btn-kecil {
+        background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 9px;
+        padding: 8px 13px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .btn-sync:hover, .btn-kecil:hover { border-color: var(--primary); background: var(--primary-50); }
+    .btn-sync:disabled, .btn-kecil:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-kecil.primer { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-kecil.primer:hover { background: var(--primary-dark); }
+
+    /* ---- Tab switcher ---- */
+    .tab-row { display: flex; gap: 6px; padding: 14px 24px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .tab-btn {
+        padding: 10px 16px; border: none; background: none; font-size: 13px; font-weight: 700; color: var(--muted);
+        cursor: pointer; border-bottom: 2.5px solid transparent; font-family: inherit; margin-bottom: -1px;
+    }
+    .tab-btn:hover { color: var(--ink); }
+    .tab-btn.aktif { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .konten-scroll { flex: 1; overflow-y: auto; padding: 22px 24px; }
+    .tab-panel { display: none; }
+    .tab-panel.aktif { display: block; }
+
+    .grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .kartu-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 14px 16px; }
+    .kartu-kpi .label { font-size: 10.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .kartu-kpi .nilai { font-size: 19px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .grid-2kol { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 860px) { .grid-2kol { grid-template-columns: 1fr; } }
+    .baris-bar { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .baris-bar:last-child { border-bottom: none; }
+    .baris-bar .peringkat { width: 22px; height: 22px; border-radius: 6px; background: var(--primary-50); color: var(--primary); font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .baris-bar .nama { flex: 1; font-weight: 600; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .baris-bar .batang-wrap { flex: 1; max-width: 140px; height: 7px; background: var(--bg); border-radius: 999px; overflow: hidden; }
+    .baris-bar .batang { height: 100%; background: linear-gradient(90deg, var(--primary), #7c3aed); border-radius: 999px; }
+    .baris-bar .nilai { width: 90px; text-align: right; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .info-strip { padding: 10px 14px; font-size: 11.5px; color: var(--muted); background: var(--bg); border-radius: 10px; margin-bottom: 14px; }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 16px; }
+    .panel h2 { font-size: 14px; margin: 0 0 2px; font-weight: 800; }
+    .panel .ket { font-size: 11px; color: var(--muted); margin: 0 0 14px; }
+    .panel-kontrol { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .panel-kontrol select, .panel-kontrol input[type="text"], .panel-kontrol input[type="date"] {
+        border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 9px; font-size: 12px; font-family: inherit; color: var(--ink);
+    }
+    .panel-kontrol label { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+
+    /* ---- Tabel generik ---- */
+    .tabel-dasbor { width: 100%; border-collapse: collapse; }
+    .tabel-dasbor th {
+        text-align: left; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+        color: var(--muted); background: var(--bg); padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .tabel-dasbor td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .tabel-dasbor tr:last-child td { border-bottom: none; }
+    .tabel-dasbor .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .tabel-dasbor tbody tr:hover { background: var(--primary-50); }
+    .scroll-tabel { overflow-x: auto; }
+    .kode-mono { font-family: "Courier New", Courier, monospace; font-weight: 700; font-size: 11.5px; }
+
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+    .badge.merah { background: var(--danger-50); color: var(--danger); }
+    .badge.biru { background: var(--primary-50); color: var(--primary); }
+    .badge.hijau { background: var(--success-50); color: var(--success); }
+    .badge.abu { background: var(--bg); color: var(--muted); }
+
+    .paginasi { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 11.5px; color: var(--muted); }
+    .paginasi .tombol-hal { display: flex; gap: 6px; }
+
+    .daftar-kosong { text-align: center; color: var(--faint); padding: 30px 16px; font-size: 12.5px; }
+    .daftar-kosong .ico { font-size: 26px; display: block; margin-bottom: 6px; opacity: .5; }
+
+    .layar-penuh { position: fixed; inset: 0; background: rgba(241, 245, 249, .96); display: flex; align-items: center; justify-content: center; font-size: 13.5px; color: var(--muted); z-index: 40; }
+    .layar-penuh.tersembunyi { display: none; }
+
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff; box-shadow: var(--shadow-lg); z-index: 50; max-width: 480px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .toast.tampil { opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: #334155; }
+
+    /* ---- Modal "Detail Penjualan" ---- */
+    .overlay-modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .5); display: none; align-items: center; justify-content: center; z-index: 60; padding: 24px; }
+    .overlay-modal.tampil { display: flex; }
+    .kartu-modal { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-lg); width: 640px; max-width: 100%; max-height: 86vh; display: flex; flex-direction: column; }
+    .kartu-modal .kepala { display: flex; align-items: center; gap: 10px; padding: 18px 22px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .kartu-modal .kepala h3 { margin: 0; font-size: 15px; font-weight: 800; flex: 1; }
+    .kartu-modal .kepala .btn-tutup { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); padding: 4px; }
+    .kartu-modal .isi { padding: 18px 22px; overflow-y: auto; }
+    .ringkas-fiskal { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .ringkas-fiskal .item { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+    .ringkas-fiskal .item .lbl { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+    .ringkas-fiskal .item .val { font-size: 14px; font-weight: 800; margin-top: 2px; }
+</style>
+</head>
+<body>
+    <div class="shell">
+        <div class="sidebar">
+            <div class="brand"><span class="logo-dot">&#128179;</span> <span data-i18n="POS Kasir">POS Kasir</span></div>
+            <nav>
+                <a class="nav-item" href="pos.html"><span class="ico">&#128179;</span> <span data-i18n="Kasir">Kasir</span></a>
+                <a class="nav-item" href="ringkasan.html"><span class="ico">&#128202;</span> <span data-i18n="Ringkasan">Ringkasan</span></a>
+                <a class="nav-item" href="pesanan.html"><span class="ico">&#128717;&#65039;</span> <span data-i18n="Pesanan">Pesanan</span></a>
+                <a class="nav-item" href="anggota.html"><span class="ico">&#128100;</span> <span data-i18n="Customer/Anggota">Customer/Anggota</span></a>
+                <a class="nav-item" href="produk.html"><span class="ico">&#128230;</span> <span data-i18n="Produk">Produk</span></a>
+                <a class="nav-item" href="stokopname.html"><span class="ico">&#128203;</span> <span data-i18n="Stok Opname">Stok Opname</span></a>
+                <a class="nav-item" href="kulakan.html"><span class="ico">&#128722;</span> <span data-i18n="Kulakan">Kulakan</span></a>
+                <a class="nav-item" href="diskon.html"><span class="ico">&#127991;&#65039;</span> <span data-i18n="Aturan Diskon">Aturan Diskon</span></a>
+                <button class="nav-item aktif" type="button"><span class="ico">&#128203;</span> <span data-i18n="Laporan Transaksi">Laporan Transaksi</span></button>
+                <a class="nav-item" href="laporan.html"><span class="ico">&#128194;</span> <span data-i18n="Laporan-Laporan">Laporan-Laporan</span></a>
+                <a class="nav-item" href="riwayat-sinkronisasi.html"><span class="ico">&#128260;</span> <span data-i18n="Riwayat Sinkronisasi">Riwayat Sinkronisasi</span></a>
+                <a class="nav-item" href="log-error.html"><span class="ico">&#128721;</span> <span data-i18n="Log Error">Log Error</span></a>
+                <a class="nav-item" href="konfigurasi.html"><span class="ico">&#9881;&#65039;</span> <span data-i18n="Konfigurasi">Konfigurasi</span></a>
+            </nav>
+            <div class="foot">
+                <div class="toko-nama" id="namaToko">Kasir</div>
+                <span class="status-pill offline" id="statusPill"><span class="dot"></span><span id="statusTeks" data-i18n="Memeriksa...">Memeriksa...</span></span>
+                <button type="button" class="btn-logout-akun" id="btnLogoutAkun" title="Keluar dari akun ini (kembali ke layar login)" style="display:block;width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid var(--danger,#dc2626);border-radius:8px;background:var(--surface,#fff);color:var(--danger,#dc2626);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128274; <span data-i18n="Logout">Logout</span></button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="topbar">
+                <div><h1 data-i18n="Laporan Transaksi">Laporan Transaksi</h1></div>
+                <div class="spacer"></div>
+                <button class="btn-sync" id="btnSinkronTransaksiCache" title="Sinkronkan salinan lokal laporan transaksi terkini dengan server (dipakai saat offline)">&#128260; <span data-i18n="Sinkronkan">Sinkronkan</span></button>
+                <button class="btn-sync" id="btnMuatUlang">&#128260; <span data-i18n="Muat Ulang">Muat Ulang</span></button>
+                <button class="btn-sync" id="btnBantuan" data-topik="laporan-transaksi" data-i18n-title="Bantuan / panduan pakai layar ini" title="Bantuan / panduan pakai layar ini">&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
+                <div id="i18nSwitcher"></div>
+            </div>
+            <div style="padding:14px 24px 0;flex-shrink:0;">
+                <div class="info-strip" id="infoCacheTransaksi">Memeriksa cache lokal...</div>
+                <div class="grid-kpi">
+                    <div class="kartu-kpi"><div class="label">Transaksi Hari Ini</div><div class="nilai" id="kpiTrxHariIni">0</div></div>
+                    <div class="kartu-kpi"><div class="label">Omzet Hari Ini</div><div class="nilai" id="kpiOmzetHariIni">Rp 0</div></div>
+                    <div class="kartu-kpi"><div class="label">Transaksi 30 Hari</div><div class="nilai" id="kpiTrx30Hari">0</div></div>
+                    <div class="kartu-kpi"><div class="label">Omzet 30 Hari</div><div class="nilai" id="kpiOmzet30Hari">Rp 0</div></div>
+                </div>
+                <div class="grid-2kol" style="margin-bottom:16px;">
+                    <div class="panel" style="margin-bottom:0;"><h2>Omzet per Kasir (30 hari)</h2><p class="ket">Siapa yang paling banyak memproses transaksi -- "siapa entry/login".</p><div id="barKasirTransaksi"></div></div>
+                    <div class="panel" style="margin-bottom:0;"><h2>Omzet per Mesin POS (30 hari)</h2><p class="ket">Mesin POS mana yang paling banyak memproses transaksi.</p><div id="barMesinTransaksi"></div></div>
+                </div>
+            </div>
+            <div class="tab-row">
+                <button class="tab-btn aktif" type="button" data-tab="order" data-i18n="Report Order">Report Order</button>
+                <button class="tab-btn" type="button" data-tab="sesi" data-i18n="Report Sesi">Report Sesi</button>
+                <button class="tab-btn" type="button" data-tab="payment" data-i18n="Report Payment">Report Payment</button>
+            </div>
+
+            <div class="konten-scroll">
+                <!-- ==== Tab: Report Order ==== -->
+                <div class="tab-panel aktif" id="tabOrder">
+                    <div class="panel">
+                        <h2 data-i18n="Daftar Order Penjualan">Daftar Order Penjualan</h2>
+                        <p class="ket" data-i18n="Setiap baris adalah satu transaksi penjualan yang sudah dibayar, dikelompokkan per sesi kasir.">Setiap baris adalah satu transaksi penjualan yang sudah dibayar, dikelompokkan per sesi kasir.</p>
+                        <div class="panel-kontrol">
+                            <label data-i18n="Dari">Dari</label><input type="date" id="orderTglMulai">
+                            <label data-i18n="Sampai">Sampai</label><input type="date" id="orderTglSampai">
+                            <input type="text" id="orderCariPembeli" placeholder="Cari nama pembeli..." data-i18n-placeholder="Cari nama pembeli...">
+                            <button class="btn-kecil primer" id="btnOrderFilter" data-i18n="Terapkan">Terapkan</button>
+                        </div>
+                        <div class="scroll-tabel"><table class="tabel-dasbor" id="tabelOrder"></table></div>
+                        <div class="paginasi" id="paginasiOrder"></div>
+                    </div>
+                </div>
+
+                <!-- ==== Tab: Report Sesi ==== -->
+                <div class="tab-panel" id="tabSesi">
+                    <div class="panel">
+                        <h2 data-i18n="Daftar Sesi Kasir">Daftar Sesi Kasir</h2>
+                        <p class="ket" data-i18n="Buka/tutup kas tiap kasir, saldo awal dan saldo akhir per sesi.">Buka/tutup kas tiap kasir, saldo awal dan saldo akhir per sesi.</p>
+                        <div class="panel-kontrol">
+                            <label data-i18n="Dari">Dari</label><input type="date" id="sesiTglMulai">
+                            <label data-i18n="Sampai">Sampai</label><input type="date" id="sesiTglSampai">
+                            <button class="btn-kecil primer" id="btnSesiFilter" data-i18n="Terapkan">Terapkan</button>
+                        </div>
+                        <div class="scroll-tabel"><table class="tabel-dasbor" id="tabelSesi"></table></div>
+                        <div class="paginasi" id="paginasiSesi"></div>
+                    </div>
+                </div>
+
+                <!-- ==== Tab: Report Payment ==== -->
+                <div class="tab-panel" id="tabPayment">
+                    <div class="panel">
+                        <h2 data-i18n="Daftar Pembayaran">Daftar Pembayaran</h2>
+                        <p class="ket" data-i18n="Metode pembayaran dan jumlah transaksi tiap order.">Metode pembayaran dan jumlah transaksi tiap order.</p>
+                        <div class="panel-kontrol">
+                            <label data-i18n="Dari">Dari</label><input type="date" id="paymentTglMulai">
+                            <label data-i18n="Sampai">Sampai</label><input type="date" id="paymentTglSampai">
+                            <button class="btn-kecil primer" id="btnPaymentFilter" data-i18n="Terapkan">Terapkan</button>
+                        </div>
+                        <div class="scroll-tabel"><table class="tabel-dasbor" id="tabelPayment"></table></div>
+                        <div class="paginasi" id="paginasiPayment"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==== Modal Detail Penjualan (posisi fiskal) ==== -->
+    <div class="overlay-modal" id="overlayDetailPenjualan">
+        <div class="kartu-modal">
+            <div class="kepala">
+                <h3 data-i18n="Detail Penjualan">Detail Penjualan</h3>
+                <button class="btn-tutup" id="btnTutupDetailPenjualan">&#10005;</button>
+            </div>
+            <div class="isi">
+                <div class="ringkas-fiskal" id="ringkasFiskalDetail"></div>
+                <div class="scroll-tabel"><table class="tabel-dasbor" id="tabelDetailPenjualan"></table></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="layar-penuh" id="layarMuat"><span data-i18n="Memuat...">Memuat...</span></div>
+    <div class="toast" id="toast"></div>
+
+    <script src="error-capture.js"></script>
+    <script src="i18n.js"></script>
+    <script src="pesan-detail.js"></script>
+    <script src="bantuan.js"></script>
+    <script src="akses-menu.js"></script>
+    <script src="logout-akun.js"></script>
+    <script src="branding.js"></script>
+<script src="pesanan-badge.js"></script>
+    <script src="laporan-transaksi-renderer.js"></script>
+</body>
+</html>

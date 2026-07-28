@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' file: https: data:;">
+<title>POS Kasir - Pesanan</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-50: #eff6ff;
+        --primary-100: #dbeafe;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --border: #e2e8f0;
+        --bg: #f1f5f9;
+        --surface: #ffffff;
+        --danger: #dc2626;
+        --danger-50: #fef2f2;
+        --success: #16a34a;
+        --success-50: #f0fdf4;
+        --warning: #d97706;
+        --warning-50: #fffbeb;
+        --radius: 12px;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+        --shadow-md: 0 4px 14px rgba(15, 23, 42, .08);
+        --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        background: var(--bg); color: var(--ink); height: 100vh; overflow: hidden; font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+    }
+    .shell { display: flex; height: 100vh; }
+
+    /* ---- Sidebar (identik pos.html, lihat komentar di sana) ---- */
+    .sidebar { width: 208px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar .brand { display: flex; align-items: center; gap: 9px; padding: 20px 18px 16px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+    .sidebar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .sidebar nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; }
+    .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); text-decoration: none; cursor: default; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+    .nav-item .ico { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-item.aktif { background: var(--primary-50); color: var(--primary); }
+    .nav-item:not(.aktif) { cursor: pointer; }
+    .nav-item:not(.aktif):hover { background: var(--bg); color: var(--ink); }
+    .nav-item .badge-pesanan-baru { display: none; align-items: center; justify-content: center; margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; }
+    .sidebar .foot { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
+    .sidebar .toko-nama { font-weight: 700; font-size: 13px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+    .status-pill.online { background: var(--success-50); color: var(--success); }
+    .status-pill.offline { background: var(--danger-50); color: var(--danger); }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ---- Main ---- */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .topbar h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+    .topbar .spacer { flex: 1; }
+    .search-box { position: relative; width: 260px; }
+    .search-box input { width: 100%; border: 1.5px solid var(--border); border-radius: 9px; padding: 9px 12px 9px 32px; font-size: 13px; outline: none; background: var(--bg); }
+    .search-box input:focus { border-color: var(--primary); background: var(--surface); }
+    .search-box .ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: .5; }
+    .btn-sync { background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .btn-sync:hover { border-color: var(--primary); background: var(--primary-50); }
+    .btn-sync:disabled { opacity: .5; cursor: not-allowed; }
+
+    .info-strip { flex-shrink: 0; padding: 8px 24px; font-size: 11px; color: var(--muted); background: var(--surface); border-bottom: 1px solid var(--border); }
+    .info-strip.cache { color: var(--warning); font-weight: 700; background: var(--warning-50); }
+
+    .grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 14px 24px 0; flex-shrink: 0; }
+    .kartu-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 12px 15px; }
+    .kartu-kpi .label { font-size: 10.5px; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
+    .kartu-kpi .nilai { font-size: 18px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .kartu-kpi.bahaya .nilai { color: var(--danger); }
+    .badge-mesin { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+    .badge-mesin.punya-saya { background: var(--success-50); color: var(--success); }
+    .paginasi { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 10px 24px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--border); background: var(--surface); }
+    .paginasi .tombol-hal { display: flex; gap: 6px; }
+
+    .daftar-scroll { flex: 1; overflow-y: auto; padding: 18px 24px; }
+    .daftar-kosong { text-align: center; color: var(--faint); padding: 60px 20px; font-size: 13px; }
+    .daftar-kosong .ico { font-size: 34px; display: block; margin-bottom: 10px; opacity: .5; }
+
+    .kartu-pesanan { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 16px 18px; margin-bottom: 12px; }
+    .kartu-pesanan .baris-atas { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .kartu-pesanan .kode { font-weight: 800; font-size: 13.5px; }
+    .badge-status { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .02em; }
+    .badge-status.lunas { background: var(--success-50); color: var(--success); }
+    .badge-status.menunggu { background: var(--warning-50); color: var(--warning); }
+    .kartu-pesanan .waktu { margin-left: auto; font-size: 11.5px; color: var(--faint); }
+    .kartu-pesanan .pemesan { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+    .kartu-pesanan .item-list { font-size: 12px; color: var(--ink); background: var(--bg); border-radius: 8px; padding: 9px 12px; margin-bottom: 10px; line-height: 1.6; }
+    .kartu-pesanan .baris-bawah { display: flex; align-items: center; gap: 10px; }
+    .kartu-pesanan .total { font-weight: 800; font-size: 15px; }
+    .kartu-pesanan .aksi { margin-left: auto; display: flex; gap: 8px; }
+    button.btn-verifikasi { padding: 8px 14px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    button.btn-verifikasi:hover { background: var(--primary-dark); }
+    button.btn-muat { padding: 8px 14px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    button.btn-muat:hover { background: #6d28d9; }
+    button.btn-batal { padding: 8px 14px; background: var(--surface); color: var(--danger); border: 1.5px solid var(--danger-50); border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    button.btn-batal:hover { background: var(--danger-50); }
+    button.btn-verifikasi:disabled, button.btn-muat:disabled, button.btn-batal:disabled { opacity: .5; cursor: not-allowed; }
+    .badge-sumber { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #ede9fe; color: #6d28d9; }
+
+    /* ---- Modal metode pembayaran (identik pos.html) ---- */
+    .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: none; align-items: center; justify-content: center; z-index: 60; }
+    .overlay.tampil { display: flex; }
+    .modal-metode { background: var(--surface); border-radius: 16px; width: 400px; max-width: 92vw; box-shadow: var(--shadow-lg); overflow: hidden; }
+    .modal-metode .kepala { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; }
+    .modal-metode .kepala h3 { margin: 0; font-size: 15.5px; font-weight: 800; }
+    .modal-metode .tutup { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--muted); padding: 4px; }
+    .grid-metode { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 20px 22px; }
+    .kartu-metode { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px; border: 1.5px solid var(--border); border-radius: 12px; cursor: pointer; background: var(--surface); text-align: left; font-family: inherit; }
+    .kartu-metode:hover { border-color: var(--primary); background: var(--primary-50); }
+    .kartu-metode .ico { font-size: 20px; }
+    .kartu-metode .label { font-weight: 700; font-size: 13px; }
+    .kartu-metode .ket { font-size: 10.5px; color: var(--muted); }
+
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff; box-shadow: var(--shadow-lg); z-index: 50; max-width: 480px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .toast.tampil { opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: #334155; }
+
+    .layar-penuh { position: fixed; inset: 0; background: rgba(241, 245, 249, .96); display: flex; align-items: center; justify-content: center; font-size: 13.5px; color: var(--muted); z-index: 40; }
+    .layar-penuh.tersembunyi { display: none; }
+
+    /* ---- Filter bar + Bayar Semua (gap-closure, padanan JSP _draft_pesanan_anggota.jsp) ---- */
+    .filter-bar { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .filter-bar .field { display: flex; flex-direction: column; gap: 4px; }
+    .filter-bar .field label { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+    .filter-bar .field input { border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-family: inherit; outline: none; }
+    .filter-bar .field input:focus { border-color: var(--primary); }
+    .filter-bar .field.kode input, .filter-bar .field.pembeli input, .filter-bar .field.pedagang input { width: 150px; }
+    .btn-saring { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .btn-saring:hover { background: var(--primary-dark); }
+    .btn-bayar-semua { background: var(--success); color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .btn-bayar-semua:hover { background: #15803d; }
+    .btn-bayar-semua:disabled, .btn-saring:disabled { opacity: .55; cursor: not-allowed; }
+    .filter-bar .spacer { flex: 1; }
+
+    button.btn-detail { padding: 8px 14px; background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    button.btn-detail:hover { border-color: var(--primary); background: var(--primary-50); }
+    button.btn-cetak { padding: 8px 14px; background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    button.btn-cetak:hover { border-color: var(--primary); background: var(--primary-50); }
+    button.btn-hitung-ulang { padding: 8px 14px; background: var(--surface); color: #7c3aed; border: 1.5px solid #ede9fe; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    button.btn-hitung-ulang:hover { background: #ede9fe; }
+    button.btn-detail:disabled, button.btn-cetak:disabled, button.btn-hitung-ulang:disabled { opacity: .5; cursor: not-allowed; }
+
+    .update-progress-track { background: var(--bg); border-radius: 999px; height: 10px; overflow: hidden; margin-top: 8px; }
+    .update-progress-bar { background: var(--primary); height: 100%; width: 0%; border-radius: 999px; transition: width .2s; }
+    .update-progress-teks { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* ---- Modal Detail/Monitor Pesanan (read-only, gap-closure) ---- */
+    .modal-detail { background: var(--surface); border-radius: 16px; width: 460px; max-width: 92vw; max-height: 85vh; box-shadow: var(--shadow-lg); overflow: hidden; display: flex; flex-direction: column; }
+    .modal-detail .kepala { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; flex-shrink: 0; }
+    .modal-detail .kepala h3 { margin: 0; font-size: 15.5px; font-weight: 800; }
+    .modal-detail .isi { padding: 0 20px 20px; overflow-y: auto; }
+    .baris-item-detail { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+    .baris-item-detail:last-child { border-bottom: none; }
+    .baris-item-detail .kanan { text-align: right; }
+    .baris-total-detail { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; padding: 10px 0 0; margin-top: 8px; border-top: 2px solid var(--border); }
+</style>
+</head>
+<body>
+    <div class="shell">
+        <div class="sidebar">
+            <div class="brand"><span class="logo-dot">&#128179;</span> <span data-i18n="POS Kasir">POS Kasir</span></div>
+            <nav>
+                <a class="nav-item" href="pos.html"><span class="ico">&#128179;</span> <span data-i18n="Kasir">Kasir</span></a>
+                <a class="nav-item" href="ringkasan.html"><span class="ico">&#128202;</span> <span data-i18n="Ringkasan">Ringkasan</span></a>
+                <button class="nav-item aktif" type="button"><span class="ico">&#128717;&#65039;</span> <span data-i18n="Pesanan">Pesanan</span></button>
+                <a class="nav-item" href="anggota.html"><span class="ico">&#128100;</span> <span data-i18n="Customer/Anggota">Customer/Anggota</span></a>
+                <a class="nav-item" href="produk.html"><span class="ico">&#128230;</span> <span data-i18n="Produk">Produk</span></a>
+                <a class="nav-item" href="stokopname.html"><span class="ico">&#128203;</span> <span data-i18n="Stok Opname">Stok Opname</span></a>
+                <a class="nav-item" href="kulakan.html"><span class="ico">&#128722;</span> <span data-i18n="Kulakan">Kulakan</span></a>
+                <a class="nav-item" href="diskon.html"><span class="ico">&#127991;&#65039;</span> <span data-i18n="Aturan Diskon">Aturan Diskon</span></a>
+                <a class="nav-item" href="laporan-transaksi.html"><span class="ico">&#128203;</span> <span data-i18n="Laporan Transaksi">Laporan Transaksi</span></a>
+                <a class="nav-item" href="laporan.html"><span class="ico">&#128194;</span> <span data-i18n="Laporan-Laporan">Laporan-Laporan</span></a>
+                <a class="nav-item" href="riwayat-sinkronisasi.html"><span class="ico">&#128260;</span> <span data-i18n="Riwayat Sinkronisasi">Riwayat Sinkronisasi</span></a>
+                <a class="nav-item" href="log-error.html"><span class="ico">&#128721;</span> <span data-i18n="Log Error">Log Error</span></a>
+                <a class="nav-item" href="konfigurasi.html"><span class="ico">&#9881;&#65039;</span> <span data-i18n="Konfigurasi">Konfigurasi</span></a>
+            </nav>
+            <div class="foot">
+                <div class="toko-nama" id="namaToko">Kasir</div>
+                <span class="status-pill offline" id="statusPill"><span class="dot"></span><span id="statusTeks" data-i18n="Memeriksa...">Memeriksa...</span></span>
+                <button type="button" class="btn-logout-akun" id="btnLogoutAkun" title="Keluar dari akun ini (kembali ke layar login)" style="display:block;width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid var(--danger,#dc2626);border-radius:8px;background:var(--surface,#fff);color:var(--danger,#dc2626);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128274; <span data-i18n="Logout">Logout</span></button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="topbar">
+                <h1 data-i18n="Pesanan & Keranjang Tertahan">Pesanan &amp; Keranjang Tertahan</h1>
+                <div class="spacer"></div>
+                <div class="search-box"><span class="ico">&#128269;</span><input type="text" id="cariPesanan" data-i18n-placeholder="Cari kode / nama pemesan..." placeholder="Cari kode / nama pemesan..."></div>
+                <button class="btn-sync" id="btnTambahPesanan">&#10133; <span data-i18n="Tambah Pesanan">Tambah Pesanan</span></button>
+                <button class="btn-sync" id="btnMuatUlang">&#128260; <span data-i18n="Segarkan Data">Segarkan Data</span></button>
+                <button class="btn-sync" id="btnBantuan" data-topik="pesanan" data-i18n-title="Bantuan / panduan pakai layar ini" title="Bantuan / panduan pakai layar ini">&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
+                <div id="i18nSwitcher"></div>
+            </div>
+            <div class="grid-kpi">
+                <div class="kartu-kpi"><div class="label">Total Pesanan</div><div class="nilai" id="kpiTotalPesanan">0</div></div>
+                <div class="kartu-kpi bahaya"><div class="label">Belum Lunas</div><div class="nilai" id="kpiPesananMenunggu">0</div></div>
+                <div class="kartu-kpi"><div class="label">Pesanan Online</div><div class="nilai" id="kpiPesananOnline">0</div></div>
+                <div class="kartu-kpi"><div class="label">Keranjang Tertahan</div><div class="nilai" id="kpiKeranjangTertahan">0</div></div>
+                <div class="kartu-kpi"><div class="label">Total Nilai Belum Lunas</div><div class="nilai" id="kpiNilaiMenunggu" style="font-size:14px;">Rp 0</div></div>
+            </div>
+            <div class="filter-bar">
+                <div class="field"><label data-i18n="Mulai">Mulai</label><input type="date" id="filterMulai"></div>
+                <div class="field"><label data-i18n="Akhir">Akhir</label><input type="date" id="filterAkhir"></div>
+                <div class="field kode"><label data-i18n="Kode">Kode</label><input type="text" id="filterKode" data-i18n-placeholder="Kode Draft" placeholder="Kode Draft"></div>
+                <div class="field pembeli"><label data-i18n="Pembeli">Pembeli</label><input type="text" id="filterPembeli" data-i18n-placeholder="Nama Pembeli" placeholder="Nama Pembeli"></div>
+                <div class="field pedagang" id="wrapFilterPedagang" style="display:none;"><label data-i18n="Pedagang">Pedagang</label><input type="text" id="filterPedagang" data-i18n-placeholder="Nama Pedagang" placeholder="Nama Pedagang"></div>
+                <button type="button" class="btn-saring" id="btnSaring">&#128269; <span data-i18n="Saring">Saring</span></button>
+                <div class="spacer"></div>
+                <button type="button" class="btn-bayar-semua" id="btnBayarSemua" style="display:none;">&#9989; <span data-i18n="Bayar Semua">Bayar Semua</span></button>
+            </div>
+            <div class="info-strip" id="infoStrip"></div>
+            <div class="info-strip" id="infoCachePesanan" style="border-bottom:none;"></div>
+            <div id="wrapProgressBayarSemua" style="display:none;padding:0 24px;">
+                <div class="update-progress-track"><div class="update-progress-bar" id="progressBayarSemuaBar"></div></div>
+                <div class="update-progress-teks" id="progressBayarSemuaTeks"></div>
+            </div>
+            <div class="daftar-scroll" id="daftarPesanan"></div>
+            <div class="paginasi" id="paginasiPesanan"></div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlayMetode">
+        <div class="modal-metode">
+            <div class="kepala">
+                <h3>Pilih Metode Pembayaran</h3>
+                <button type="button" class="tutup" id="btnTutupMetode">&#10005;</button>
+            </div>
+            <div class="grid-metode" id="gridMetode"></div>
+        </div>
+    </div>
+
+    <!-- ==== Modal Detail/Monitor Pesanan (read-only, gap-closure -- padanan tombol "Detail"/"Monitor" JSP) ==== -->
+    <div class="overlay" id="overlayDetail">
+        <div class="modal-detail">
+            <div class="kepala">
+                <h3 id="judulDetail">Detail Pesanan</h3>
+                <button type="button" class="tutup" id="btnTutupDetail">&#10005;</button>
+            </div>
+            <div class="isi" id="isiDetail"></div>
+        </div>
+    </div>
+
+    <div class="layar-penuh" id="layarMuat"><div>Memuat daftar pesanan...</div></div>
+    <div class="toast" id="toast"></div>
+
+    <script src="error-capture.js"></script>
+    <script src="i18n.js"></script>
+    <script src="pesan-detail.js"></script>
+    <script src="bantuan.js"></script>
+    <script src="akses-menu.js"></script>
+    <script src="logout-akun.js"></script>
+    <script src="branding.js"></script>
+<script src="pesanan-badge.js"></script>
+    <script src="struk.js"></script>
+    <script src="pesanan-renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+<title>Tidak Dapat Terhubung - POS Kasir</title>
+<style>
+    :root { --ink:#1f2937; --muted:#6b7280; --danger:#dc2626; --primary:#0d6efd; --border:#e2e8f0; }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f8fafc; color: var(--ink);
+    }
+    .card { max-width: 460px; padding: 36px 32px; text-align: center; }
+    .icon { font-size: 52px; margin-bottom: 14px; }
+    h1 { font-size: 19px; margin: 0 0 10px; }
+    p { font-size: 13.5px; color: var(--muted); line-height: 1.7; margin: 0 0 4px; }
+    .target { font-family: ui-monospace, monospace; font-size: 12.5px; background: #fff; border: 1px solid var(--border); border-radius: 7px; padding: 8px 12px; margin: 14px 0; word-break: break-all; }
+    .buttons { display: flex; gap: 10px; margin-top: 22px; }
+    button { flex: 1; padding: 11px; border-radius: 8px; font-size: 13.5px; font-weight: 700; cursor: pointer; border: 1.5px solid var(--border); background: #fff; color: var(--ink); }
+    button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .detail { margin-top: 18px; font-size: 11px; color: #9ca3af; }
+</style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">&#128268;</div>
+        <h1>Tidak Dapat Terhubung ke Server</h1>
+        <p>Aplikasi tidak berhasil menghubungi alamat server yang tersimpan. Periksa koneksi internet Anda, atau pastikan alamat server berikut sudah benar:</p>
+        <div class="target" id="targetUrl">-</div>
+        <div class="buttons">
+            <button id="btnSetup">Ubah Pengaturan</button>
+            <button class="primary" id="btnRetry">Coba Lagi</button>
+        </div>
+        <div class="detail" id="detail"></div>
+    </div>
+    <script src="error-renderer.js"></script>
+</body>
+</html>

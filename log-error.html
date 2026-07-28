@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' file: https: data:;">
+<title>POS Kasir - Log Error</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-50: #eff6ff;
+        --primary-100: #dbeafe;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --border: #e2e8f0;
+        --bg: #f1f5f9;
+        --surface: #ffffff;
+        --danger: #dc2626;
+        --danger-50: #fef2f2;
+        --success: #16a34a;
+        --success-50: #f0fdf4;
+        --warning: #d97706;
+        --warning-50: #fffbeb;
+        --radius: 12px;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+        --shadow-md: 0 4px 14px rgba(15, 23, 42, .08);
+        --shadow-lg: 0 16px 40px rgba(15, 23, 42, .16);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        background: var(--bg); color: var(--ink); height: 100vh; overflow: hidden; font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+    }
+    .shell { display: flex; height: 100vh; }
+
+    /* ---- Sidebar (identik halaman lain) ---- */
+    .sidebar { width: 208px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar .brand { display: flex; align-items: center; gap: 9px; padding: 20px 18px 16px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+    .sidebar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .sidebar nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; }
+    .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); text-decoration: none; cursor: default; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
+    .nav-item .ico { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-item.aktif { background: var(--primary-50); color: var(--primary); }
+    .nav-item:not(.aktif) { cursor: pointer; }
+    .nav-item:not(.aktif):hover { background: var(--bg); color: var(--ink); }
+    .nav-item .badge-pesanan-baru { display: none; align-items: center; justify-content: center; margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; }
+    .sidebar .foot { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
+    .sidebar .toko-nama { font-weight: 700; font-size: 13px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+    .status-pill.online { background: var(--success-50); color: var(--success); }
+    .status-pill.offline { background: var(--danger-50); color: var(--danger); }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ---- Main ---- */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .topbar h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+    .topbar .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .topbar .spacer { flex: 1; }
+    .btn-sync { background: var(--surface); color: var(--ink); border: 1.5px solid var(--border); border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .btn-sync:hover { border-color: var(--primary); background: var(--primary-50); }
+    .btn-sync:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-sync.bahaya:hover { border-color: var(--danger); background: var(--danger-50); color: var(--danger); }
+
+    .konten-scroll { flex: 1; overflow-y: auto; padding: 22px 24px; }
+
+    .filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .filter-bar select, .filter-bar input {
+        border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12.5px;
+        background: var(--surface); color: var(--ink); font-family: inherit;
+    }
+    .filter-bar input[type="text"] { flex: 1; min-width: 180px; }
+    .filter-bar input[type="date"] { width: 140px; }
+
+    .ringkas-bar { display: flex; gap: 10px; margin-bottom: 14px; }
+    .kartu-ringkas { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow-sm); }
+    .kartu-ringkas .label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin-bottom: 4px; }
+    .kartu-ringkas .nilai { font-size: 20px; font-weight: 800; }
+    .kartu-ringkas.error .nilai { color: var(--danger); }
+    .kartu-ringkas.peringatan .nilai { color: var(--warning); }
+
+    .tabel-log { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
+    .tabel-log th {
+        text-align: left; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+        color: var(--muted); background: var(--bg); padding: 10px 14px; border-bottom: 1px solid var(--border);
+    }
+    .tabel-log td { padding: 11px 14px; font-size: 12.5px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .tabel-log tr:last-child td { border-bottom: none; }
+    .tabel-log .waktu { white-space: nowrap; color: var(--muted); font-size: 11.5px; }
+    .tabel-log .sumber { font-family: "Consolas", monospace; font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .tabel-log .pesan { max-width: 360px; }
+    .tabel-log .aksi-baris { white-space: nowrap; text-align: right; }
+    .tabel-log .aksi-baris button {
+        border: none; background: none; cursor: pointer; font-size: 11.5px; font-weight: 700; padding: 4px 7px;
+        border-radius: 6px; color: var(--muted);
+    }
+    .tabel-log .aksi-baris button:hover { background: var(--bg); color: var(--ink); }
+    .tabel-log .aksi-baris button.hapus:hover { color: var(--danger); background: var(--danger-50); }
+    .badge-tingkat { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+    .badge-tingkat.error { background: var(--danger-50); color: var(--danger); }
+    .badge-tingkat.peringatan { background: var(--warning-50); color: var(--warning); }
+    .detail-baris {
+        display: none; margin-top: 6px; padding: 8px 10px; background: var(--bg); border-radius: 8px;
+        font-family: "Consolas", monospace; font-size: 10.5px; color: var(--ink); white-space: pre-wrap;
+        word-break: break-word; max-height: 220px; overflow-y: auto;
+    }
+    .detail-baris.tampil { display: block; }
+    .link-toggle { color: var(--primary); cursor: pointer; font-weight: 700; font-size: 11px; }
+
+    .daftar-kosong { text-align: center; color: var(--faint); padding: 40px 20px; font-size: 13px; background: var(--surface); border-radius: var(--radius); }
+    .daftar-kosong .ico { font-size: 30px; display: block; margin-bottom: 8px; opacity: .5; }
+
+    .btn-muat-lagi { display: block; width: 100%; margin-top: 12px; padding: 10px; background: var(--surface); border: 1.5px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-muat-lagi:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-muat-lagi:disabled { opacity: .5; cursor: not-allowed; }
+
+    .layar-penuh { position: fixed; inset: 0; background: rgba(241, 245, 249, .96); display: flex; align-items: center; justify-content: center; font-size: 13.5px; color: var(--muted); z-index: 40; }
+    .layar-penuh.tersembunyi { display: none; }
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff; box-shadow: var(--shadow-lg); z-index: 50; max-width: 480px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .toast.tampil { opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: #334155; }
+</style>
+</head>
+<body>
+    <div class="shell">
+        <div class="sidebar">
+            <div class="brand"><span class="logo-dot">&#128179;</span> <span data-i18n="POS Kasir">POS Kasir</span></div>
+            <nav>
+                <a class="nav-item" href="pos.html"><span class="ico">&#128179;</span> <span data-i18n="Kasir">Kasir</span></a>
+                <a class="nav-item" href="ringkasan.html"><span class="ico">&#128202;</span> <span data-i18n="Ringkasan">Ringkasan</span></a>
+                <a class="nav-item" href="pesanan.html"><span class="ico">&#128717;&#65039;</span> <span data-i18n="Pesanan">Pesanan</span></a>
+                <a class="nav-item" href="anggota.html"><span class="ico">&#128100;</span> <span data-i18n="Customer/Anggota">Customer/Anggota</span></a>
+                <a class="nav-item" href="produk.html"><span class="ico">&#128230;</span> <span data-i18n="Produk">Produk</span></a>
+                <a class="nav-item" href="stokopname.html"><span class="ico">&#128203;</span> <span data-i18n="Stok Opname">Stok Opname</span></a>
+                <a class="nav-item" href="kulakan.html"><span class="ico">&#128722;</span> <span data-i18n="Kulakan">Kulakan</span></a>
+                <a class="nav-item" href="diskon.html"><span class="ico">&#127991;&#65039;</span> <span data-i18n="Aturan Diskon">Aturan Diskon</span></a>
+                <a class="nav-item" href="laporan-transaksi.html"><span class="ico">&#128203;</span> <span data-i18n="Laporan Transaksi">Laporan Transaksi</span></a>
+                <a class="nav-item" href="laporan.html"><span class="ico">&#128194;</span> <span data-i18n="Laporan-Laporan">Laporan-Laporan</span></a>
+                <a class="nav-item" href="riwayat-sinkronisasi.html"><span class="ico">&#128260;</span> <span data-i18n="Riwayat Sinkronisasi">Riwayat Sinkronisasi</span></a>
+                <button class="nav-item aktif" type="button"><span class="ico">&#128721;</span> <span data-i18n="Log Error">Log Error</span></button>
+                <a class="nav-item" href="konfigurasi.html"><span class="ico">&#9881;&#65039;</span> <span data-i18n="Konfigurasi">Konfigurasi</span></a>
+            </nav>
+            <div class="foot">
+                <div class="toko-nama" id="namaToko">Kasir</div>
+                <span class="status-pill offline" id="statusPill"><span class="dot"></span><span id="statusTeks" data-i18n="Memeriksa...">Memeriksa...</span></span>
+                <button type="button" class="btn-logout-akun" id="btnLogoutAkun" title="Keluar dari akun ini (kembali ke layar login)" style="display:block;width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid var(--danger,#dc2626);border-radius:8px;background:var(--surface,#fff);color:var(--danger,#dc2626);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128274; <span data-i18n="Logout">Logout</span></button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="topbar">
+                <div>
+                    <h1 data-i18n="Log Error">Log Error</h1>
+                    <div class="sub" data-i18n="Seluruh error/exception yang tertangkap di aplikasi ini (Kasir, Ringkasan, Pesanan, dst) -- tersimpan di perangkat ini, bukan sekadar console.">Seluruh error/exception yang tertangkap di aplikasi ini (Kasir, Ringkasan, Pesanan, dst) -- tersimpan di perangkat ini, bukan sekadar console.</div>
+                </div>
+                <div class="spacer"></div>
+                <button class="btn-sync" id="btnMuatUlang">&#128260; <span data-i18n="Muat Ulang">Muat Ulang</span></button>
+                <button class="btn-sync" id="btnSalinSemua">&#128203; <span data-i18n="Salin Semua Error">Salin Semua Error</span></button>
+                <button class="btn-sync bahaya" id="btnBersihkanSemua">&#128465;&#65039; <span data-i18n="Bersihkan Semua">Bersihkan Semua</span></button>
+                <button class="btn-sync" id="btnBantuan" data-topik="log-error" data-i18n-title="Bantuan / panduan pakai layar ini" title="Bantuan / panduan pakai layar ini">&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
+                <div id="i18nSwitcher"></div>
+            </div>
+            <div class="konten-scroll">
+                <div class="ringkas-bar" id="ringkasBar"></div>
+
+                <div class="filter-bar">
+                    <select id="filterTingkat">
+                        <option value="">Semua Tingkat</option>
+                        <option value="error">Hanya Error</option>
+                        <option value="peringatan">Hanya Peringatan</option>
+                    </select>
+                    <select id="filterSumber">
+                        <option value="">Semua Sumber</option>
+                        <option value="main:api">Server/API (main:api)</option>
+                        <option value="main:uncaughtException">Main Process (crash)</option>
+                        <option value="renderer:">Aplikasi/Layar (renderer)</option>
+                    </select>
+                    <input type="date" id="filterDari" title="Dari tanggal">
+                    <input type="date" id="filterSampai" title="Sampai tanggal">
+                    <input type="text" id="filterKeyword" placeholder="Cari pesan/detail...">
+                </div>
+
+                <div id="wadahLog"></div>
+                <button type="button" class="btn-muat-lagi" id="btnMuatLagi" style="display:none;">Muat 100 Lagi</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="layar-penuh" id="layarMuat"><div>Memuat log error...</div></div>
+    <div class="toast" id="toast"></div>
+
+    <script src="error-capture.js"></script>
+    <script src="i18n.js"></script>
+    <script src="pesan-detail.js"></script>
+    <script src="bantuan.js"></script>
+    <script src="akses-menu.js"></script>
+    <script src="logout-akun.js"></script>
+    <script src="branding.js"></script>
+<script src="pesanan-badge.js"></script>
+    <script src="log-error-renderer.js"></script>
+</body>
+</html>
