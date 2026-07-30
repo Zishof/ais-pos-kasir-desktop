@@ -14,6 +14,12 @@ on:
         required: true
         type: string
 
+# WAJIB eksplisit -- default GITHUB_TOKEN di banyak repo/organisasi sekarang read-only utk
+# `contents` (termasuk unggah aset rilis), tanpa baris ini "gh release upload" gagal 403
+# "Resource not accessible by integration" meski token-nya sendiri valid.
+permissions:
+  contents: write
+
 jobs:
   build-deb:
     runs-on: ubuntu-latest
