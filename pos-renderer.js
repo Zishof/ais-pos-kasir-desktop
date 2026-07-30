@@ -2192,13 +2192,19 @@
         elBtnTahanKeranjang.disabled = true;
         const oriHtml = elBtnTahanKeranjang.innerHTML;
         elBtnTahanKeranjang.textContent = '...';
+        const kodeUnikTahan = buatKodeUnik();
+        const { total: totalTahan } = hitungRingkasanKeranjang();
         const payload = {
             id: draftAktifId || null,
-            kodeUnik: buatKodeUnik(),
+            kodeUnik: kodeUnikTahan,
+            clientTrxId: kodeUnikTahan,
             idToko: tokoId,
+            tokoId: tokoId,
+            kasir: userId,
             waktu: formatWaktuServer(new Date()),
             id_member: memberTerpilih ? memberTerpilih.id : null,
             caraBayar: idCaraBayar,
+            total: totalTahan,
             transaksi: cart.map((c) => ({
                 id: c.id, kode: c.kode, nama: c.nama, harga: c.harga, jumlah: c.jumlah,
                 diskon: c.diskon || 0, aturanDiskon: c.aturanDiskon || null, cashback: c.cashback || 0

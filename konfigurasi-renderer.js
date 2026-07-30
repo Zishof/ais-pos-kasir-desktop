@@ -30,6 +30,7 @@
 
     let isAdminAkun = false;
     let supervisorPedagang = false;
+    let aksesMenuCrud = {};
 
     async function segarkanStatus() {
         try {
@@ -44,12 +45,21 @@
                 elNamaToko.textContent = cfg.data.tokoNama || (cfg.data.userId ? ('Kasir - ' + cfg.data.userId) : 'Kasir');
                 isAdminAkun = !!cfg.data.isAdmin;
                 supervisorPedagang = !!cfg.data.supervisorPedagang;
+                aksesMenuCrud = cfg.data.aksesMenuCrud || {};
                 terapkanGerbangAkses();
             }
         } catch (e) { /* abaikan */ }
     }
 
-    const bolehKelolaPedagang = () => isAdminAkun || supervisorPedagang;
+    const bolehAksiMenu = (kunci, aksi) => {
+        if (isAdminAkun || supervisorPedagang) return true;
+        const crud = aksesMenuCrud && aksesMenuCrud[kunci];
+        if (!crud) return false;
+        if (crud.supervisor === true) return true;
+        return crud[aksi] !== false;
+    };
+    const bolehKelolaPedagang = () => bolehAksiMenu('pedagang', 'update') || bolehAksiMenu('pedagang', 'create');
+    const bolehUbahSupervisorPedagang = () => bolehAksiMenu('pedagang', 'supervisor');
 
     function terapkanGerbangAkses() {
         document.getElementById('btnTambahPedagang').style.display = bolehKelolaPedagang() ? '' : 'none';
@@ -320,7 +330,7 @@
         // Gap-closure "supervisor boleh buat Supervisor lain juga, bukan cuma Kasir" -- checkbox ini
         // SEBELUMNYA hanya utk admin global; sekarang jg tampil utk supervisor toko (server sudah
         // menghormati field ini utk kedua jenis pemanggil, lihat JavaDoc KantinHelper.tambahAkunKasir).
-        elWrapPedagangSupervisor.style.display = bolehKelolaPedagang() ? '' : 'none';
+        elWrapPedagangSupervisor.style.display = bolehUbahSupervisorPedagang() ? '' : 'none';
         elOverlayFormPedagang.className = 'overlay tampil';
         elFpUserid.focus();
     }
@@ -337,7 +347,7 @@
         elFpKeterangan.value = p.keterangan || '';
         elFpAktif.checked = p.aktif !== false;
         elFpSupervisor.checked = !!p.supervisor;
-        elWrapPedagangSupervisor.style.display = bolehKelolaPedagang() ? '' : 'none';
+        elWrapPedagangSupervisor.style.display = bolehUbahSupervisorPedagang() ? '' : 'none';
         Object.keys(PETA_AKSES_MENU).forEach((k) => { PETA_AKSES_MENU[k].checked = p[k] !== false; });
         elOverlayFormPedagang.className = 'overlay tampil';
         elFpNama.focus();
@@ -357,7 +367,7 @@
             if (idPedagangDiubah) {
                 const payload = { id: idPedagangDiubah, nama, keterangan: elFpKeterangan.value.trim(), aktif: elFpAktif.checked };
                 if (elFpPassword.value) payload.password_baru = elFpPassword.value;
-                if (bolehKelolaPedagang()) payload.supervisor = elFpSupervisor.checked;
+                if (bolehUbahSupervisorPedagang()) payload.supervisor = elFpSupervisor.checked;
                 Object.keys(PETA_AKSES_MENU).forEach((k) => { payload[k] = PETA_AKSES_MENU[k].checked; });
                 r = await window.electronAPI.posAPI.pedagang.ubah(payload);
             } else {
@@ -367,7 +377,7 @@
                 if (password.length < 6) { tampilkanToast('error', 'Kata sandi minimal 6 karakter.'); return; }
                 const payload = { userid, password, nama, keterangan: elFpKeterangan.value.trim() };
                 if (isAdminAkun) payload.toko_id = elFpTokoId.value || null;
-                if (bolehKelolaPedagang()) payload.supervisor = elFpSupervisor.checked;
+                if (bolehUbahSupervisorPedagang()) payload.supervisor = elFpSupervisor.checked;
                 Object.keys(PETA_AKSES_MENU).forEach((k) => { payload[k] = PETA_AKSES_MENU[k].checked; });
                 r = await window.electronAPI.posAPI.akun.tambah(payload);
             }

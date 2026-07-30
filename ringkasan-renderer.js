@@ -19,6 +19,46 @@
     const elInfoStrip = document.getElementById('infoStrip');
     const elLayarMuat = document.getElementById('layarMuat');
     const elToast = document.getElementById('toast');
+    const elOverlayAlasan = document.getElementById('overlayAlasan');
+    const elJudulAlasan = document.getElementById('judulAlasan');
+    const elKetAlasan = document.getElementById('ketAlasan');
+    const elInputAlasan = document.getElementById('inputAlasan');
+    const elBtnBatalAlasan = document.getElementById('btnBatalAlasan');
+    const elBtnLanjutAlasan = document.getElementById('btnLanjutAlasan');
+
+    /**
+     * Pengganti window.prompt() -- Electron modern (lihat error "prompt() is and will not be
+     * supported") tidak lagi mendukung dialog blocking bawaan ini di renderer process. Modal HTML
+     * sederhana (lihat overlay #overlayAlasan di ringkasan.html) yang dibungkus Promise supaya
+     * pemanggilnya tetap bisa `await mintaAlasanBatal(...)` persis spt prompt() lama. Resolve dgn
+     * string alasan yg sudah di-trim, atau null kalau kasir membatalkan (tombol Batal/Escape).
+     */
+    function mintaAlasan(judul, keterangan) {
+        return new Promise((resolve) => {
+            elJudulAlasan.textContent = judul;
+            elKetAlasan.textContent = keterangan || '';
+            elInputAlasan.value = '';
+            elOverlayAlasan.classList.add('tampil');
+            setTimeout(() => elInputAlasan.focus(), 50);
+
+            function tutup(hasil) {
+                elOverlayAlasan.classList.remove('tampil');
+                elBtnLanjutAlasan.removeEventListener('click', onLanjut);
+                elBtnBatalAlasan.removeEventListener('click', onBatal);
+                elInputAlasan.removeEventListener('keydown', onKeydown);
+                resolve(hasil);
+            }
+            function onLanjut() { tutup(elInputAlasan.value.trim()); }
+            function onBatal() { tutup(null); }
+            function onKeydown(ev) {
+                if (ev.key === 'Escape') { onBatal(); }
+                else if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { onLanjut(); }
+            }
+            elBtnLanjutAlasan.addEventListener('click', onLanjut);
+            elBtnBatalAlasan.addEventListener('click', onBatal);
+            elInputAlasan.addEventListener('keydown', onKeydown);
+        });
+    }
 
     // ==== Util umum ====
 
@@ -217,7 +257,7 @@
             elTabelTransaksi.innerHTML = '<tr><td><div class="daftar-kosong"><span class="ico">\u{1F4ED}</span>Belum ada transaksi.</div></td></tr>';
             return;
         }
-        let html = '<thead><tr><th>Waktu</th><th>Barang</th><th>Pembeli</th><th>Tipe</th><th>Metode</th><th style="text-align:right">Qty</th><th style="text-align:right">Total</th><th>Status</th><th></th><th></th></tr></thead><tbody>';
+        let html = '<thead><tr><th>Waktu</th><th>Barang</th><th>Pembeli</th><th>Tipe</th><th>Metode</th><th style="text-align:right">Qty</th><th style="text-align:right">Total</th><th>Status</th><th></th><th></th>' + (isSupervisor ? '<th></th>' : '') + '</tr></thead><tbody>';
         data.forEach((t) => {
             html += '<tr>'
                 + '<td>' + formatWaktu(t.waktu) + '</td>'
@@ -230,6 +270,7 @@
                 + '<td>' + (t.terlayani ? '<span class="badge hijau">Selesai</span>' : '<span class="badge kuning">Menunggu</span>') + '</td>'
                 + '<td>' + (t.terlayani ? '' : '<button type="button" class="btn-kecil layani-satu" data-id="' + t.idTransaksi + '">Layani</button>') + '</td>'
                 + '<td><button type="button" class="btn-kecil cetak-struk-satu" data-id="' + t.idTransaksi + '">Cetak Struk</button></td>'
+                + (isSupervisor ? '<td><button type="button" class="btn-kecil merah batalkan-trx-satu" data-id="' + t.idTransaksi + '">Batalkan</button></td>' : '')
                 + '</tr>';
         });
         html += '</tbody>';
@@ -240,6 +281,34 @@
         elTabelTransaksi.querySelectorAll('.cetak-struk-satu').forEach((btn) => {
             btn.addEventListener('click', () => cetakStrukTransaksi(btn.getAttribute('data-id')));
         });
+        elTabelTransaksi.querySelectorAll('.batalkan-trx-satu').forEach((btn) => {
+            btn.addEventListener('click', () => batalkanTransaksiSatu(btn.getAttribute('data-id')));
+        });
+    }
+
+    /**
+     * Tombol "Batalkan" (Supervisor) -- gap-closure padanan JSP e-Kantin (tombol "Batal" di
+     * {@code _riwayat_transaksi_terbaru.jsp}). Alasan WAJIB diisi (dipaksa lewat loop prompt sampai
+     * ada isi atau kasir membatalkan sendiri dgn Cancel) -- server tetap menolak alasan kosong sbg
+     * jaring pengaman kedua (lihat KantinHelper.batalkanTransaksi), prompt di sini murni memandu.
+     * Arsip tersimpan ke {@code koperasi.pembatalan_transaksi} lewat util yang SAMA dgn JSP (
+     * {@code PembatalanTransaksiUtil.batalkan}) -- transaksi asli dihapus permanen (bukan flag
+     * nonaktif), stok kembali OTOMATIS (dihitung ulang dari sisa riwayat penjualan, bukan aksi
+     * terpisah -- lihat JavaDoc server).
+     */
+    async function batalkanTransaksiSatu(id) {
+        const alasan = await mintaAlasan('Alasan Pembatalan Transaksi', 'Wajib diisi -- transaksi akan dihapus permanen dari riwayat penjualan (tetap tercatat di arsip pembatalan beserta alasannya).');
+        if (alasan === null) return; // kasir menekan Batal
+        if (!alasan) { tampilkanToast('error', 'Alasan pembatalan wajib diisi.'); return; }
+        if (!confirm('Batalkan transaksi ini? Transaksi akan dihapus permanen dari riwayat penjualan (tetap tercatat di arsip pembatalan beserta alasannya). Tindakan ini tidak bisa dibatalkan sendiri dari sini.')) return;
+        try {
+            const r = await window.electronAPI.posAPI.batalkanTransaksi({ id: id, alasan: alasan });
+            if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); return; }
+            tampilkanToast('success', 'Transaksi berhasil dibatalkan dan tercatat di arsip pembatalan.');
+            muatTabUmum();
+        } catch (e) {
+            tampilkanToast('error', 'Gagal membatalkan transaksi: ' + (e && e.message ? e.message : e));
+        }
     }
 
     /**
@@ -784,12 +853,19 @@
 
     // ==== Inisialisasi ====
 
+    // Tombol "Batalkan" (batalkan_transaksi) digerbang Supervisor server-side (KantinHelper
+    // .batalkanTransaksi) -- dibaca sekali di sini MURNI utk sembunyikan tombol dari kasir biasa,
+    // gerbang SEBENARNYA tetap di server, pola sama retur-penjualan-renderer.js.
+    let isSupervisor = false;
+
     async function muatKonteksToko() {
         try {
             const hasil = await window.electronAPI.posAPI.konfigurasi();
             if (hasil.ok) {
                 const userId = hasil.data.userId || '';
                 elNamaToko.textContent = hasil.data.tokoNama || (userId ? ('Kasir - ' + userId) : 'Kasir');
+                isSupervisor = !!hasil.data.supervisorPedagang;
+                renderTabelTransaksi(trxState.dataTrx); // render ulang skrg supervisor sudah diketahui (kalau tabel sempat dirender duluan tanpa tombol Batalkan)
             }
         } catch (e) { /* abaikan -- bukan jalur kritis */ }
     }

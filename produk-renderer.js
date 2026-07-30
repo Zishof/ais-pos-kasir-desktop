@@ -260,8 +260,16 @@
 
     let isAdminAkun = false;
     let supervisorPedagang = false;
+    let aksesMenuCrud = {};
     let tokoNamaSaatIni = '';
-    const bolehKelolaProduk = () => isAdminAkun || supervisorPedagang;
+    const bolehAksiMenu = (kunci, aksi) => {
+        if (isAdminAkun || supervisorPedagang) return true;
+        const crud = aksesMenuCrud && aksesMenuCrud[kunci];
+        if (!crud) return false;
+        if (crud.supervisor === true) return true;
+        return crud[aksi] !== false;
+    };
+    const bolehKelolaProduk = () => bolehAksiMenu('produk', 'update') || bolehAksiMenu('produk', 'create');
 
     // Dipakai segarkanStatus (poll 30 detik) supaya TIDAK menggambar ulang tabel produk (elIsiHalaman.
     // innerHTML=... di renderIsiHalaman -- lihat catatan di sana) pada SETIAP polling, hanya saat izin
@@ -284,6 +292,7 @@
                 tokoNamaSaatIni = cfg.data.tokoNama || '';
                 isAdminAkun = !!cfg.data.isAdmin;
                 supervisorPedagang = !!cfg.data.supervisorPedagang;
+                aksesMenuCrud = cfg.data.aksesMenuCrud || {};
                 const kelolaSekarang = bolehKelolaProduk();
                 elBtnTambahProduk.style.display = kelolaSekarang ? 'inline-flex' : 'none';
                 elBtnHitungUlangStok.style.display = kelolaSekarang ? 'inline-flex' : 'none';

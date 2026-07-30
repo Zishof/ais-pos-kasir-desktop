@@ -58,7 +58,15 @@
      */
     let isAdminAkun = false;
     let supervisorPedagang = false;
-    const bolehKelolaAnggota = () => isAdminAkun || supervisorPedagang;
+    let aksesMenuCrud = {};
+    const bolehAksiMenu = (kunci, aksi) => {
+        if (isAdminAkun || supervisorPedagang) return true;
+        const crud = aksesMenuCrud && aksesMenuCrud[kunci];
+        if (!crud) return false;
+        if (crud.supervisor === true) return true;
+        return crud[aksi] !== false;
+    };
+    const bolehKelolaAnggota = () => bolehAksiMenu('anggota', 'update') || bolehAksiMenu('anggota', 'create');
 
     async function segarkanStatus() {
         try {
@@ -73,6 +81,7 @@
                 elNamaToko.textContent = cfg.data.tokoNama || (cfg.data.userId ? ('Kasir - ' + cfg.data.userId) : 'Kasir');
                 isAdminAkun = !!cfg.data.isAdmin;
                 supervisorPedagang = !!cfg.data.supervisorPedagang;
+                aksesMenuCrud = cfg.data.aksesMenuCrud || {};
                 elBtnTambahAnggota.style.display = bolehKelolaAnggota() ? 'inline-flex' : 'none';
                 renderTabelAnggota(daftarAnggotaTerakhir);
             }

@@ -436,6 +436,37 @@ let layarPelangganStateTerakhir = null;
 let posApiToken = null;
 let posTokoAktifId = null;
 
+const HALAMAN_POS_BY_AKSES = [
+    { file: 'pos.html', akses: 'kasir' },
+    { file: 'ringkasan.html', akses: 'ringkasan' },
+    { file: 'pesanan.html', akses: 'pesanan' },
+    { file: 'anggota.html', akses: 'anggota' },
+    { file: 'produk.html', akses: 'produk' },
+    { file: 'stokopname.html', akses: 'stokopname' },
+    { file: 'kulakan.html', akses: 'kulakan' },
+    { file: 'diskon.html', akses: 'diskon' },
+    { file: 'retur-penjualan.html', akses: 'returpenjualan' },
+    { file: 'riwayat-penjualan.html', akses: 'riwayatpenjualan' },
+    { file: 'laporan-transaksi.html', akses: 'laporantransaksi' },
+    { file: 'laporan.html', akses: 'laporan' },
+    { file: 'riwayat-sinkronisasi.html', akses: 'riwayatsinkronisasi' },
+    { file: 'log-error.html', akses: 'logerror' },
+    { file: 'konfigurasi.html', akses: 'konfigurasi' }
+];
+
+async function muatHalamanAwalPos(win, cfg) {
+    let halaman = 'pos.html';
+    try {
+        const hasil = await panggilPosApi(cfg, 'konfigurasi', {});
+        const aksesMenu = hasil && hasil.ok && hasil.data ? hasil.data.aksesMenu : null;
+        const pilihan = aksesMenu ? HALAMAN_POS_BY_AKSES.find((p) => aksesMenu[p.akses] !== false) : null;
+        if (pilihan && pilihan.file) halaman = pilihan.file;
+    } catch (e) {
+        halaman = 'pos.html';
+    }
+    if (win && !win.isDestroyed()) win.loadFile(halaman);
+}
+
 /**
  * URL "aplikasi lengkap" (dashboard/menu server penuh) hasil redirect login terakhir -- disimpan
  * supaya menu "Buka Aplikasi Lengkap (Online)" bisa langsung mengarah ke sana tanpa perlu login ulang
@@ -655,7 +686,7 @@ function openMainWindow(cfg) {
         catatErrorLogAman({ sumber: 'main:unresponsive', pesan: 'Tampilan Kasir sempat tidak merespons (macet), bukan tertutup -- dibiarkan Electron pulih sendiri.', layar: 'pos.html (Kasir)' });
     });
 
-    mainWindow.loadFile('pos.html');
+    muatHalamanAwalPos(mainWindow, cfg);
     mulaiAutoCekUpdate();
     mulaiSinkronSesiKasBerkala();
     sinkronkanSesiKasPending(readConfig()).catch(() => {}); // langsung coba sekali saat jendela dibuka -- jangan tunggu 30 detik pertama kalau kebetulan ada sesi tertunda dari sesi aplikasi sebelumnya
@@ -1968,6 +1999,15 @@ ipcMain.handle('login:sinkron-data', async () => {
     if (!cfg) return { ok: false, pesan: 'Alamat server belum diatur.' };
     if (!posApiToken) return { ok: false, pesan: 'Sesi belum siap -- silakan masuk ulang.' };
 
+    const hasilKonfig = await panggilPosApi(cfg, 'konfigurasi', {});
+    if (hasilKonfig.ok) {
+        localDb.simpanCache('konfigurasi', hasilKonfig.data);
+        const aksesMenu = hasilKonfig.data.aksesMenu || {};
+        if (aksesMenu.kasir === false && aksesMenu.produk === false && aksesMenu.barang === false) {
+            return { ok: true, jumlahProduk: 0, jumlahKategori: 0 };
+        }
+    }
+
     const hasilKatalog = await panggilPosApi(cfg, 'katalog', {});
     if (!hasilKatalog.ok) {
         return { ok: false, pesan: hasilKatalog.offline ? 'Tidak ada koneksi internet -- sinkronisasi dilewati, data lama (bila ada) tetap dipakai.' : (hasilKatalog.pesan || 'Gagal mengunduh katalog.') };
@@ -1977,12 +2017,10 @@ ipcMain.handle('login:sinkron-data', async () => {
     await unduhCacheGambarProduk(hasilKatalog.data.produk);
     localDb.simpanCache('katalog', hasilKatalog.data);
 
-    const hasilKonfig = await panggilPosApi(cfg, 'konfigurasi', {});
     if (!hasilKonfig.ok) {
         // Katalog SUDAH berhasil disimpan -- konfigurasi gagal tidak membatalkan itu, cukup dilaporkan.
         return { ok: false, pesan: hasilKonfig.pesan || 'Katalog tersimpan, tetapi gagal mengunduh konfigurasi.', jumlahProduk: (hasilKatalog.data.produk || []).length };
     }
-    localDb.simpanCache('konfigurasi', hasilKonfig.data);
 
     return {
         ok: true,
@@ -3878,6 +3916,12 @@ ipcMain.handle('pos:stokopname-dashboard', handlerDashboard('stok_dashboard'));
  */
 ipcMain.handle('pos:kulakan-list', handlerDashboard('kulakan_list'));
 ipcMain.handle('pos:kulakan-simpan', handlerDashboard('kulakan_simpan'));
+ipcMain.handle('pos:retur-penjualan-list', handlerDashboard('retur_penjualan_list'));
+ipcMain.handle('pos:retur-penjualan-simpan', handlerDashboard('retur_penjualan_simpan'));
+ipcMain.handle('pos:retur-penjualan-ubah', handlerDashboard('retur_penjualan_ubah'));
+ipcMain.handle('pos:retur-penjualan-hapus', handlerDashboard('retur_penjualan_hapus'));
+ipcMain.handle('pos:batalkan-transaksi', handlerDashboard('batalkan_transaksi'));
+ipcMain.handle('pos:ebisnis-menu-tree', handlerDashboard('ebisnis_menu_tree'));
 
 /** Layar "Produk" -- daftar produk utk Cetak Price Tag/POP (gap-closure), lihat JavaDoc server {@code KantinHelper.priceTagListProduk}. Barcode/tata-letak label dibangun di renderer, ini murni sumber datanya. */
 ipcMain.handle('pos:pricetag-list-produk', handlerDashboard('price_tag_list_produk'));
@@ -3980,11 +4024,27 @@ ipcMain.handle('pos:laporan-simpan-pdf', async (event, opsi) => {
     }
 });
 
+/** Batas tunggu kasir utk hasil sinkron server sebelum "Bayar"/"Tahan" dibalas duluan (lihat JavaDoc
+ * {@link #prosesTransaksiPosOfflineFirst}) -- BUKAN timeout jaringan (itu tetap 15 detik di {@link
+ * #panggilPosApi}), murni batas SEBERAPA LAMA UI boleh menunggu sebelum kasir dapat konfirmasi. */
+const BATAS_TUNGGU_SINKRON_TRANSAKSI_MS = 3000;
+
 /**
  * Menulis SATU transaksi (checkout/simpan draft) ke antrean lokal PENDING dulu (SELALU, sebelum
  * mencoba jaringan sama sekali -- prinsip "local-first" yg sama dipertahankan dari
- * ais_pos_offline.js/local-db.js), lalu MENCOBA sekali mengirimnya langsung. Dipakai handler
- * {@code pos:bayar}/{@code pos:draft-bayar}.
+ * ais_pos_offline.js/local-db.js), lalu MENCOBA mengirimnya ke server. Dipakai handler
+ * {@code pos:bayar}/{@code pos:draft-bayar} (jadi berlaku utk keduanya, "Bayar" MAUPUN "Tahan").
+ *
+ * <p><b>Gap-closure "klik Bayar lama sekali lalu macet" (RAM 8GB, WiFi toko lambat/padat)</b> --
+ * SEBELUMNYA method ini `await` percobaan kirim ke server SAMPAI SELESAI (bisa sampai {@link
+ * #panggilPosApi}'s timeout 15 detik) sebelum membalas apa pun ke kasir -- baris lokal SUDAH aman
+ * tersimpan sejak awal, tapi tombol "Bayar" tetap macet menunggu jaringan yg lambat, PERSIS gejala yg
+ * dilaporkan. Sekarang percobaan kirim dibatasi {@link #BATAS_TUNGGU_SINKRON_TRANSAKSI_MS}: kalau
+ * server sempat menjawab dalam batas itu (kasus normal, jaringan sehat), kasir tetap dapat konfirmasi
+ * "Tersinkron" seketika spt sebelumnya -- TAPI kalau melewati batas, kasir SEGERA dibalas "tersimpan
+ * lokal, akan disinkron di latar belakang" TANPA menunggu jaringan lagi, sementara percobaan kirim yg
+ * sudah berjalan tetap dibiarkan lanjut sendiri di latar belakang (menandai hasil akhirnya ke
+ * local-db begitu selesai, kapan pun itu) -- kasir tidak pernah lagi menunggu jaringan.</p>
  *
  * @param {{host:string, contextPath:string, https:boolean}|null} cfg
  * @param {string} aksi {@code "bayar"} atau {@code "draft_bayar"}.
@@ -4006,9 +4066,26 @@ async function prosesTransaksiPosOfflineFirst(cfg, aksi, payload) {
         payloadAsli: payload
     });
 
-    const hasil = await panggilPosApi(cfg, aksi, payload);
+    const percobaanKirim = panggilPosApi(cfg, aksi, payload);
+    // Apa pun jalur di bawah yg dipakai (selesai cepat atau lewat batas), SELALU tandai hasil AKHIR
+    // percobaan ini ke local-db begitu benar2 selesai -- kalau jalur "selesai cepat" di bawah sudah
+    // menanganinya lebih dulu, pemanggilan tandaiSinkron/tandaiGagal di sini idempoten (menimpa nilai
+    // yg sama), aman diulang.
+    percobaanKirim.then((h) => {
+        if (h.ok) localDb.tandaiSinkron(clientTrxId);
+        else if (!h.offline) localDb.tandaiGagal(clientTrxId, h.pesan);
+    }).catch((e) => localDb.tandaiGagal(clientTrxId, e && e.message ? e.message : String(e)));
+
+    let selesaiDalamBatas = true;
+    const hasil = await Promise.race([
+        percobaanKirim,
+        new Promise((resolve) => setTimeout(() => { selesaiDalamBatas = false; resolve(null); }, BATAS_TUNGGU_SINKRON_TRANSAKSI_MS))
+    ]);
+
+    if (!selesaiDalamBatas) {
+        return { ok: true, offline: true, pesan: 'Jaringan lambat -- transaksi sudah tersimpan lokal, sedang dikirim ke server di latar belakang.' };
+    }
     if (hasil.ok) {
-        localDb.tandaiSinkron(clientTrxId);
         return { ok: true, data: hasil.data, offline: false };
     }
     if (hasil.offline) {
@@ -4017,7 +4094,6 @@ async function prosesTransaksiPosOfflineFirst(cfg, aksi, payload) {
     // Ditolak SERVER (mis. stok tak cukup/saldo member kurang) -- BUKAN soal jaringan. Baris TETAP
     // PENDING (bukan dihapus) supaya kasir bisa perbaiki lalu coba lagi -- lihat JavaDoc
     // local-db.js:tandaiGagal soal kenapa status tak berubah jadi status akhir baru.
-    localDb.tandaiGagal(clientTrxId, hasil.pesan);
     return { ok: false, pesan: hasil.pesan, butuhLoginUlang: hasil.butuhLoginUlang };
 }
 
@@ -4071,6 +4147,50 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
     tulisLog('unhandledRejection', reason);
     catatErrorLogAman({ sumber: 'main:unhandledRejection', pesan: reason && reason.message ? reason.message : String(reason), detail: reason && reason.stack, layar: 'main-process' });
+});
+
+/**
+ * Gap-closure "aplikasi sering keluar sendiri saat cetak struk/buka laci" -- {@code uncaughtException}
+ * / {@code unhandledRejection} di atas HANYA menangkap error JAVASCRIPT di proses utama, TIDAK
+ * menangkap CRASH NATIF proses render/GPU/utility Chromium (mis. driver printer USB thermal yang
+ * tidak stabil menjatuhkan proses GPU saat {@code webContents.print()} dipanggil dari jendela cetak
+ * tersembunyi {@code winCetak} -- pola dikenal luas di Electron, terutama utk printer struk yang
+ * driver-nya jarang diuji dgn Chromium print pipeline). Tanpa handler ini, crash semacam itu TIDAK
+ * pernah lewat {@code process.on(...)} di atas sama sekali (beda mekanisme -- native process
+ * terminate, bukan JS exception) -- gejalanya PERSIS "aplikasi tiba-tiba tertutup tanpa pesan apa
+ * pun", cocok dgn laporan pengguna. {@code app.on('render-process-gone'/'child-process-gone')} adalah
+ * API resmi Electron (18+) utk kasus ini, MENGGANTIKAN {@code webContents.on('crashed')} versi lama.
+ *
+ * Window Kasir utama SENGAJA di-reload otomatis (bukan dibiarkan blank/mati) supaya kasir bisa
+ * lanjut kerja tanpa restart aplikasi manual -- jendela cetak tersembunyi ({@code winCetak}) tidak
+ * perlu recovery apa pun (sudah sekali pakai & di-destroy di blok {@code finally} pemanggilnya).
+ */
+app.on('render-process-gone', (event, webContents, details) => {
+    tulisLog('render-process-gone', details);
+    catatErrorLogAman({ sumber: 'main:render-process-gone', pesan: 'reason=' + details.reason + ' exitCode=' + details.exitCode, detail: JSON.stringify(details), layar: 'render-process' });
+    const jendelaUtama = mainWindow && !mainWindow.isDestroyed() && webContents === mainWindow.webContents;
+    try {
+        dialog.showErrorBox('Layar Aplikasi Berhenti Tak Terduga',
+            (jendelaUtama ? 'Layar Kasir utama' : 'Salah satu jendela aplikasi') + ' berhenti bekerja (' + details.reason + '), kemungkinan krn driver printer/perangkat bermasalah.\n\n'
+            + 'Aplikasi TETAP BERJALAN, TIDAK ditutup.' + (jendelaUtama ? ' Layar Kasir akan dimuat ulang otomatis.' : '')
+            + '\n\nRincian teknis sudah dicatat ke:\n' + LOG_PATH);
+    } catch (e) { /* menampilkan dialog gagal tak boleh menimbulkan error baru */ }
+    if (jendelaUtama) {
+        try { webContents.reload(); } catch (e) { /* ignore -- window mungkin sudah tidak valid sama sekali */ }
+    }
+});
+app.on('child-process-gone', (event, details) => {
+    tulisLog('child-process-gone', details);
+    catatErrorLogAman({ sumber: 'main:child-process-gone', pesan: 'type=' + details.type + ' reason=' + details.reason, detail: JSON.stringify(details), layar: 'child-process' });
+    // Hanya GPU yg diberi tahu ke pengguna (paling sering terjadi saat cetak) -- crash Utility/lainnya
+    // biasanya tak berdampak langsung ke kasir & Chromium sudah otomatis me-restart proses itu sendiri.
+    if (details.type === 'GPU') {
+        try {
+            dialog.showErrorBox('Proses Grafis Sistem Berhenti',
+                'Proses grafis (GPU) Windows berhenti tak terduga, biasanya terjadi saat mencetak struk/pratinjau.\n\n'
+                + 'Aplikasi TETAP BERJALAN -- silakan coba cetak ulang. Jika printer tetap gagal berulang kali, restart aplikasi ini.');
+        } catch (e) { /* ignore */ }
+    }
 });
 
 app.whenReady().then(() => {

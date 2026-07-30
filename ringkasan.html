@@ -64,6 +64,8 @@
     .btn-sync:disabled, .btn-kecil:disabled { opacity: .5; cursor: not-allowed; }
     .btn-kecil.primer { background: var(--primary); color: #fff; border-color: var(--primary); }
     .btn-kecil.primer:hover { background: var(--primary-dark); }
+    .btn-kecil.merah { background: var(--danger-50); color: var(--danger); border-color: var(--danger); }
+    .btn-kecil.merah:hover { background: var(--danger); color: #fff; }
 
     /* ---- Tab switcher ---- */
     .tab-row { display: flex; gap: 6px; padding: 14px 24px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
@@ -160,6 +162,18 @@
     .toast.success { background: var(--success); }
     .toast.error { background: var(--danger); }
     .toast.info { background: #334155; }
+
+    /* ---- Modal alasan (pengganti window.prompt() -- Electron modern tidak lagi mendukungnya,
+       lihat catatan di ringkasan-renderer.js fungsi mintaAlasanBatal) ---- */
+    .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: none; align-items: center; justify-content: center; z-index: 80; }
+    .overlay.tampil { display: flex; }
+    .modal-alasan { background: var(--surface); border-radius: 16px; width: 420px; max-width: 92vw; box-shadow: var(--shadow-lg); padding: 20px 22px; }
+    .modal-alasan h3 { margin: 0 0 6px; font-size: 15px; font-weight: 800; color: var(--ink); }
+    .modal-alasan p { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+    .modal-alasan textarea { width: 100%; box-sizing: border-box; min-height: 72px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 9px; font-family: inherit; font-size: 13px; resize: vertical; }
+    .modal-alasan .aksi { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .modal-alasan .aksi button { padding: 8px 16px; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; border: 1.5px solid var(--border); background: var(--surface); color: var(--ink); }
+    .modal-alasan .aksi button.utama { background: var(--danger); border-color: var(--danger); color: #fff; }
 </style>
 </head>
 <body>
@@ -175,6 +189,8 @@
                 <a class="nav-item" href="stokopname.html"><span class="ico">&#128203;</span> <span data-i18n="Stok Opname">Stok Opname</span></a>
                 <a class="nav-item" href="kulakan.html"><span class="ico">&#128722;</span> <span data-i18n="Kulakan">Kulakan</span></a>
                 <a class="nav-item" href="diskon.html"><span class="ico">&#127991;&#65039;</span> <span data-i18n="Aturan Diskon">Aturan Diskon</span></a>
+                <a class="nav-item" href="retur-penjualan.html"><span class="ico">&#8617;&#65039;</span> <span data-i18n="Retur Penjualan">Retur Penjualan</span></a>
+                <a class="nav-item" href="riwayat-penjualan.html"><span class="ico">&#128337;</span> <span data-i18n="Riwayat Penjualan">Riwayat Penjualan</span></a>
                 <a class="nav-item" href="laporan-transaksi.html"><span class="ico">&#128203;</span> <span data-i18n="Laporan Transaksi">Laporan Transaksi</span></a>
                 <a class="nav-item" href="laporan.html"><span class="ico">&#128194;</span> <span data-i18n="Laporan-Laporan">Laporan-Laporan</span></a>
                 <a class="nav-item" href="riwayat-sinkronisasi.html"><span class="ico">&#128260;</span> <span data-i18n="Riwayat Sinkronisasi">Riwayat Sinkronisasi</span></a>
@@ -521,11 +537,24 @@
     <div class="layar-penuh" id="layarMuat"><div>Memuat dashboard...</div></div>
     <div class="toast" id="toast"></div>
 
+    <div class="overlay" id="overlayAlasan">
+        <div class="modal-alasan">
+            <h3 id="judulAlasan">Alasan</h3>
+            <p id="ketAlasan"></p>
+            <textarea id="inputAlasan" placeholder="Tulis alasan di sini..."></textarea>
+            <div class="aksi">
+                <button type="button" id="btnBatalAlasan">Batal</button>
+                <button type="button" class="utama" id="btnLanjutAlasan">Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
     <script src="error-capture.js"></script>
     <script src="i18n.js"></script>
     <script src="pesan-detail.js"></script>
     <script src="bantuan.js"></script>
     <script src="akses-menu.js"></script>
+    <script src="menu-tree.js"></script>
     <script src="logout-akun.js"></script>
     <script src="branding.js"></script>
 <script src="pesanan-badge.js"></script>

@@ -79,7 +79,15 @@
 
     let isAdminAkun = false;
     let supervisorPedagang = false;
-    const bolehKelolaSo = () => isAdminAkun || supervisorPedagang;
+    let aksesMenuCrud = {};
+    const bolehAksiMenu = (kunci, aksi) => {
+        if (isAdminAkun || supervisorPedagang) return true;
+        const crud = aksesMenuCrud && aksesMenuCrud[kunci];
+        if (!crud) return false;
+        if (crud.supervisor === true) return true;
+        return crud[aksi] !== false;
+    };
+    const bolehKelolaSo = () => bolehAksiMenu('stokopname', 'update') || bolehAksiMenu('stokopname', 'create');
 
     async function segarkanStatus() {
         try {
@@ -94,6 +102,7 @@
                 elNamaToko.textContent = cfg.data.tokoNama || (cfg.data.userId ? ('Kasir - ' + cfg.data.userId) : 'Kasir');
                 isAdminAkun = !!cfg.data.isAdmin;
                 supervisorPedagang = !!cfg.data.supervisorPedagang;
+                aksesMenuCrud = cfg.data.aksesMenuCrud || {};
                 elPanelEntriSo.style.display = bolehKelolaSo() ? 'block' : 'none';
                 elBlokirSo.style.display = bolehKelolaSo() ? 'none' : 'block';
                 elPanelScanSo.style.display = bolehKelolaSo() ? 'block' : 'none';

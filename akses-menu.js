@@ -32,6 +32,8 @@
 		'stokopname.html': 'stokopname',
 		'kulakan.html': 'kulakan',
 		'diskon.html': 'diskon',
+		'retur-penjualan.html': 'returpenjualan',
+		'riwayat-penjualan.html': 'riwayatpenjualan',
 		'laporan-transaksi.html': 'laporantransaksi',
 		'laporan.html': 'laporan',
 		'riwayat-sinkronisasi.html': 'riwayatsinkronisasi',
@@ -100,8 +102,8 @@
 		if (!wrap) {
 			wrap = document.createElement('div');
 			wrap.id = 'wrapPilihTokoAktifPos';
-			wrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#475569;';
-			wrap.innerHTML = '<span style="font-weight:700;">Toko</span><select id="selectTokoAktifPos" style="max-width:240px;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;background:white;color:#0f172a;font-weight:700;"></select>';
+			wrap.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:6px;font-size:12px;color:#475569;width:100%;max-width:180px;';
+			wrap.innerHTML = '<span style="font-weight:700;">Toko</span><select id="selectTokoAktifPos" title="Pilih toko aktif" style="width:100%;max-width:180px;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;background:white;color:#0f172a;font-weight:700;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;"></select>';
 			const namaToko = document.getElementById('namaToko') || document.getElementById('txtNamaToko');
 			if (namaToko && namaToko.parentNode) namaToko.parentNode.insertBefore(wrap, namaToko.nextSibling);
 			else document.body.insertBefore(wrap, document.body.firstChild);

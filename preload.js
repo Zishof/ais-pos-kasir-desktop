@@ -201,6 +201,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
             simpan: (payload) => ipcRenderer.invoke('pos:kulakan-simpan', payload)
         },
 
+        /**
+         * Layar "Retur Penjualan" -- catat barang kembali dari pelanggan. Gated Supervisor utk
+         * simpan/ubah/hapus (lihat JavaDoc server KantinHelper.returPenjualanSimpan) -- {@code list}
+         * boleh dipanggil siapa saja.
+         */
+        returPenjualan: {
+            /** @param {{keyword?:string, toko_id?:string, page?:number, page_size?:number}} payload */
+            list: (payload) => ipcRenderer.invoke('pos:retur-penjualan-list', payload),
+            /** @param {{pembelian_anggota_koperasi_id?:number, kode_transaksi_asal?:string, nama_pembeli?:string, metode_pengembalian?:string, items:Array<{produk_id:number, qty:number, harga_satuan:number, alasan?:string, kondisi_barang?:string, kembalikan_ke_stok?:boolean}>}} payload */
+            simpan: (payload) => ipcRenderer.invoke('pos:retur-penjualan-simpan', payload),
+            /** @param {{id:number, qty?:number, harga_satuan?:number, alasan?:string, kondisi_barang?:string, kembalikan_ke_stok?:boolean, metode_pengembalian?:string, keterangan?:string}} payload */
+            ubah: (payload) => ipcRenderer.invoke('pos:retur-penjualan-ubah', payload),
+            /** @param {{id:number}} payload */
+            hapus: (payload) => ipcRenderer.invoke('pos:retur-penjualan-hapus', payload)
+        },
+
+        /**
+         * Layar "Ringkasan" -- batalkan transaksi (gap-closure padanan JSP {@code
+         * riwayat_transaksi_service.jsp}/{@code _riwayat_transaksi_terbaru.jsp}). Gated Supervisor,
+         * alasan WAJIB -- lihat JavaDoc server KantinHelper.batalkanTransaksi. Arsip tersimpan di
+         * {@code koperasi.pembatalan_transaksi} (sama persis dgn JSP, bukan mekanisme terpisah).
+         * @param {{id:number, alasan:string}} payload
+         */
+        batalkanTransaksi: (payload) => ipcRenderer.invoke('pos:batalkan-transaksi', payload),
+
+        /**
+         * Pohon navigasi ERP eBisnis lengkap (gap-closure dokumen STRUKTUR_MENU_LENGKAP_EBISNIS_ID.md)
+         * -- dipakai menu-tree.js merender sidebar berbentuk tree (menggantikan `<nav>` statis flat).
+         * HANYA berisi node yang sudah punya layar sungguhan (`tersedia:true` di ebisnis_menu_master
+         * .json), beserta folder leluhurnya utk konteks pengelompokan.
+         * @param {{platform:"desktop"}} payload
+         */
+        ebisnisMenuTree: (payload) => ipcRenderer.invoke('pos:ebisnis-menu-tree', payload),
+
         /** Layar "Produk" -- Cetak Price Tag/POP (gap-closure, padanan JSP barang/pricetag.jsp). */
         priceTag: {
             /** @param {{keyword?:string}} [payload] */

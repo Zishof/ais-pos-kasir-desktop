@@ -67,7 +67,15 @@
     let isAdminAkun = false;
     /** Gerbang supervisor (SAMA pola dgn produk-renderer.js) -- kasir biasa hanya boleh melihat aturan diskon, tidak menambah/mengubah. Gerbang SEBENARNYA ditegakkan server-side (KantinHelper.diskonSimpan). */
     let supervisorPedagang = false;
-    const bolehKelolaDiskon = () => isAdminAkun || supervisorPedagang;
+    let aksesMenuCrud = {};
+    const bolehAksiMenu = (kunci, aksi) => {
+        if (isAdminAkun || supervisorPedagang) return true;
+        const crud = aksesMenuCrud && aksesMenuCrud[kunci];
+        if (!crud) return false;
+        if (crud.supervisor === true) return true;
+        return crud[aksi] !== false;
+    };
+    const bolehKelolaDiskon = () => bolehAksiMenu('diskon', 'update') || bolehAksiMenu('diskon', 'create');
 
     async function segarkanStatus() {
         try {
@@ -82,6 +90,7 @@
                 elNamaToko.textContent = cfg.data.tokoNama || (cfg.data.userId ? ('Kasir - ' + cfg.data.userId) : 'Kasir');
                 isAdminAkun = !!cfg.data.isAdmin;
                 supervisorPedagang = !!cfg.data.supervisorPedagang;
+                aksesMenuCrud = cfg.data.aksesMenuCrud || {};
                 elWrapToko.style.display = isAdminAkun ? 'flex' : 'none';
                 elBtnTambahDiskon.style.display = bolehKelolaDiskon() ? '' : 'none';
                 renderTabelDiskon(daftarDiskonTerakhir);

@@ -1,0 +1,37 @@
+name: Build Linux (.deb)
+
+# Build dijalankan di runner Ubuntu ASLI milik GitHub (bukan cross-build dari Windows) --
+# electron-builder target Linux (deb/AppImage) butuh tooling native (fpm, mksquashfs) yang
+# tidak tersedia di Windows biasa tanpa WSL/Docker. Dipicu manual (workflow_dispatch) supaya
+# tidak otomatis jalan tiap push -- proses rilis versi lain (Windows/Android) masih manual
+# spt biasa, workflow ini HANYA menambah aset .deb ke rilis GitHub yang SUDAH ADA (dibuat
+# lewat `gh release create` dari mesin dev seperti sebelumnya).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag rilis GitHub yang SUDAH ADA utk ditempeli aset .deb (mis. v1.0.65)'
+        required: true
+        type: string
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build .deb
+        run: npm run dist:linux
+
+      - name: Upload .deb ke rilis GitHub yang sudah ada
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ inputs.tag }}" release/*.deb release/latest-linux.yml --clobber --repo "${{ github.repository }}"

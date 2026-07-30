@@ -162,6 +162,34 @@
 				'Badge "Mesin Ini" menandai baris yang berasal dari perangkat yang sedang Anda pakai -- berguna kalau satu toko punya lebih dari satu mesin kasir.',
 			],
 		},
+		'retur-penjualan': {
+			judul: 'Retur Penjualan',
+			ikon: '\u{21A9}\u{FE0F}',
+			ringkasan: 'Catat barang yang dikembalikan pelanggan (rusak/salah/tidak sesuai) dari transaksi yang sudah dibayar -- stok otomatis kembali kecuali barangnya rusak.',
+			alur: ['Klik "Retur Baru (Cari Transaksi)"', 'Cari nota/nama pembeli asal', 'Pilih transaksi', 'Centang barang + isi qty/alasan/kondisi', 'Simpan Retur'],
+			langkah: [
+				{ judul: 'Cari transaksi asal', teks: 'Ketik nomor nota atau nama pembeli, lalu pilih transaksi yang benar dari daftar hasil.' },
+				{ judul: 'Pilih barang & kondisi', teks: 'Centang barang yang diretur, atur jumlahnya (maksimal sejumlah yang dibeli), pilih alasan, dan pilih kondisi barang.' },
+				{ judul: 'Kondisi barang menentukan stok', teks: 'Kondisi "Baik (Layak Jual Lagi)" otomatis menambah stok jual; kondisi "Rusak (Tidak Layak Jual)" TIDAK menambah stok (barang dianggap write-off, bukan sellable lagi).' },
+			],
+			tips: [
+				'Retur bisa diproses kasir mana pun yang sedang bertugas -- tidak perlu supervisor, beda dengan Kulakan.',
+			],
+		},
+		'riwayat-penjualan': {
+			judul: 'Riwayat Penjualan',
+			ikon: '\u{1F553}',
+			ringkasan: 'Telusuri transaksi penjualan yang sudah dibayar -- cari per tanggal/nama pembeli/nomor nota, lihat rincian, atau cetak ulang struknya.',
+			alur: ['Buka menu Riwayat Penjualan', 'Atur rentang tanggal / kata kunci pencarian', 'Klik "Detail Penjualan" pada baris yang dicari', 'Klik "Cetak Ulang Struk" bila perlu'],
+			langkah: [
+				{ judul: 'Cari transaksi', teks: 'Isi rentang tanggal dan/atau nama pembeli/nomor nota, lalu klik Terapkan.' },
+				{ judul: 'Lihat rincian', teks: 'Klik "Detail Penjualan" pada baris yang dituju untuk melihat daftar barang, diskon, dan pajak transaksi tersebut.' },
+				{ judul: 'Cetak ulang struk', teks: 'Di dalam jendela Detail Penjualan, klik "Cetak Ulang Struk" -- berguna kalau struk asli hilang/rusak atau pelanggan minta salinan.' },
+			],
+			tips: [
+				'Beda dengan menu Laporan Transaksi (fokus analitik/rekap), menu ini fokus mencari SATU transaksi tertentu untuk dilihat/dicetak ulang.',
+			],
+		},
 		laporan: {
 			judul: 'Laporan-Laporan',
 			ikon: '\u{1F5C2}',

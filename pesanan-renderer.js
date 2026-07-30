@@ -86,6 +86,15 @@
     let userId = '';
     let isAdminAkun = false;
     let supervisorPedagang = false;
+    let aksesMenuCrud = {};
+
+    const bolehAksiMenu = (kunci, aksi) => {
+        if (isAdminAkun || supervisorPedagang) return true;
+        const crud = aksesMenuCrud && aksesMenuCrud[kunci];
+        if (!crud) return false;
+        if (crud.supervisor === true) return true;
+        return crud[aksi] !== false;
+    };
 
     function formatRupiah(n) {
         return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
@@ -192,6 +201,7 @@
                 // terkunci ke tokonya sendiri di server, tak perlu filter pedagang lagi.
                 isAdminAkun = !!hasilKonfig.data.isAdmin;
                 supervisorPedagang = !!hasilKonfig.data.supervisorPedagang;
+                aksesMenuCrud = hasilKonfig.data.aksesMenuCrud || {};
                 elWrapFilterPedagang.style.display = isAdminAkun ? 'flex' : 'none';
                 elBtnBayarSemua.style.display = isAdminAkun ? 'inline-flex' : 'none';
             }
@@ -266,7 +276,7 @@
                 btnCetak.addEventListener('click', () => cetakStrukPesanan(p));
                 aksiSelalu.appendChild(btnCetak);
             }
-            if (isAdminAkun || supervisorPedagang) {
+            if (bolehAksiMenu('pesanan', 'update')) {
                 const btnHitungUlang = document.createElement('button');
                 btnHitungUlang.className = 'btn-hitung-ulang';
                 btnHitungUlang.type = 'button';
@@ -295,7 +305,7 @@
                 // Gerbang "supervisor-only" (gap-closure "edit/hapus/batal hanya supervisor") --
                 // gerbang SEBENARNYA ditegakkan server-side (PosApi.bolehSupervisorAtauAdmin di
                 // prosesBatalPesanan), ini murni UX (jangan tampilkan tombol yg toh akan ditolak).
-                if (isAdminAkun || supervisorPedagang) {
+                if (bolehAksiMenu('pesanan', 'reject')) {
                     const btnBatal = document.createElement('button');
                     btnBatal.className = 'btn-batal';
                     btnBatal.type = 'button';
