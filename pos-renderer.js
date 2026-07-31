@@ -1648,9 +1648,25 @@
      */
     const elSearchDropdown = document.getElementById('searchDropdown');
 
+    /**
+     * Hasil dropdown pencarian yg SEDANG tampil, urutan sama persis dgn baris yg dirender -- disimpan di
+     * luar {@code renderSearchDropdown} supaya listener {@code keydown} pintasan angka (di bawah) bisa
+     * merujuk baris ke-N tanpa merender ulang/query ulang produk.
+     * @type {object[]}
+     */
+    let daftarHasilPencarianTerkini = [];
+
     function sembunyikanSearchDropdown() {
         elSearchDropdown.classList.remove('tampil');
         elSearchDropdown.innerHTML = '';
+        daftarHasilPencarianTerkini = [];
+    }
+
+    function pilihHasilPencarian(p) {
+        tambahKeKeranjang(p);
+        elCariProduk.value = '';
+        sembunyikanSearchDropdown();
+        elCariProduk.focus();
     }
 
     function renderSearchDropdown() {
@@ -1661,32 +1677,54 @@
             if (kategoriAktifId !== null && p.kategoriId !== kategoriAktifId) return false;
             return p.nama.toLowerCase().indexOf(keyword) >= 0 || (p.kode || '').toLowerCase().indexOf(keyword) >= 0;
         }).slice(0, 30);
+        daftarHasilPencarianTerkini = daftar;
 
         if (daftar.length === 0) {
             elSearchDropdown.innerHTML = '<div class="kosong-hasil">Tidak ada produk yang cocok.</div>';
         } else {
             elSearchDropdown.innerHTML = '';
-            daftar.forEach((p) => {
+            daftar.forEach((p, idx) => {
+                // Pintasan angka HANYA utk 10 baris teratas (1-9 lalu 0 utk baris ke-10) -- satu tombol
+                // = satu tekan, tanpa perlu Enter/jeda. Baris ke-11 dst tetap bisa dipilih via klik/mouse
+                // apa adanya, cukup jarang perlu dijangkau lewat keyboard.
+                const nomorPintasan = idx < 9 ? String(idx + 1) : (idx === 9 ? '0' : '');
                 const baris = document.createElement('button');
                 baris.type = 'button';
                 baris.className = 'baris-hasil';
-                baris.innerHTML = '<div class="avatar-mini-hasil"></div><div class="info-hasil"><div class="n"></div><div class="k"></div></div><div class="harga-hasil"></div>';
+                baris.innerHTML = '<div class="nomor-hasil"></div><div class="avatar-mini-hasil"></div><div class="info-hasil"><div class="n"></div><div class="k"></div></div><div class="harga-hasil"></div>';
+                baris.querySelector('.nomor-hasil').textContent = nomorPintasan;
                 baris.querySelector('.avatar-mini-hasil').style.background = warnaDariNama(p.nama);
                 baris.querySelector('.avatar-mini-hasil').textContent = inisialDariNama(p.nama);
                 baris.querySelector('.n').textContent = p.nama;
                 baris.querySelector('.k').textContent = (p.kode || '') + (Number(p.stok) <= 0 ? ' · Habis' : '');
                 baris.querySelector('.harga-hasil').textContent = formatRupiah(p.hargaJual);
-                baris.addEventListener('click', () => {
-                    tambahKeKeranjang(p);
-                    elCariProduk.value = '';
-                    sembunyikanSearchDropdown();
-                    elCariProduk.focus();
-                });
+                baris.addEventListener('click', () => pilihHasilPencarian(p));
                 elSearchDropdown.appendChild(baris);
             });
         }
         elSearchDropdown.classList.add('tampil');
     }
+
+    /**
+     * Pintasan angka "1".."9","0" di kotak pencarian -- begitu dropdown hasil tampil, tekan angka yg
+     * tertera di baris (lihat {@code nomor-hasil} di atas) utk langsung menambahkannya ke keranjang,
+     * tanpa mouse. HANYA aktif kalau kata kunci yg SUDAH diketik BUKAN murni angka -- kalau kasir sedang
+     * mengetik kode produk numerik (mis. cari "123" lalu mau lanjut ke "1234"), angka berikutnya WAJIB
+     * tetap masuk ke kotak sbg lanjutan ketikan, bukan tertangkap sbg pintasan baris. Pencarian by-nama
+     * (huruf) tidak kena masalah ini krn nama produk nyaris tak pernah diikuti lanjutan digit yg
+     * disengaja.
+     */
+    elCariProduk.addEventListener('keydown', (event) => {
+        if (!elSearchDropdown.classList.contains('tampil')) return;
+        if (!/^[0-9]$/.test(event.key)) return;
+        const keywordSaatIni = (elCariProduk.value || '').trim();
+        if (/^[0-9]+$/.test(keywordSaatIni)) return; // sedang cari by kode angka -- biarkan ketikan lanjut apa adanya
+        const idx = event.key === '0' ? 9 : (Number(event.key) - 1);
+        const p = daftarHasilPencarianTerkini[idx];
+        if (!p) return;
+        event.preventDefault();
+        pilihHasilPencarian(p);
+    });
 
     /**
      * Mode tampilan "Fokus Keranjang" vs "Normal" -- permintaan kasir yg mengoperasikan layar kecil/
@@ -1712,7 +1750,7 @@
         elBodyPos.classList.toggle('mode-keranjang-penuh', penuh);
         elBtnModeKeranjangPenuh.style.display = penuh ? 'none' : 'inline-flex';
         elBtnModeNormal.style.display = penuh ? 'inline-flex' : 'none';
-        elBtnToggleFullLayarHeader.innerHTML = penuh ? '&#9638; <span data-i18n="Tampilan Normal">Tampilan Normal</span>' : '&#128722; <span data-i18n="Full Layar">Full Layar</span>';
+        elBtnToggleFullLayarHeader.innerHTML = '<span class="tombol-fkey">F7</span>' + (penuh ? '&#9638; <span data-i18n="Tampilan Normal">Tampilan Normal</span>' : '&#128722; <span data-i18n="Full Layar">Full Layar</span>');
         elBtnToggleFullLayarHeader.title = penuh ? 'Tampilan normal -- produk + keranjang' : 'Tampilan keranjang penuh -- sembunyikan kotak produk, cari lewat scan/nama/kode';
         // Pindahkan NODE ASLI (bukan klona) -- listener scan barcode yg sudah terpasang tetap ikut.
         (penuh ? elSearchBoxSlotKeranjang : document.querySelector('.topbar')).insertBefore(
@@ -1721,27 +1759,29 @@
         );
         sembunyikanSearchDropdown();
         try { localStorage.setItem(KUNCI_MODE_LAYOUT, mode); } catch (e) { /* abaikan -- murni preferensi tampilan */ }
-        if (penuh) pastikanFokusPencarianModeFull();
+        pastikanFokusPencarian();
     }
 
     /**
-     * Ramah barcode scanner: di mode "Fokus Keranjang" (layar kios/kecil), kotak pencarian WAJIB selalu
-     * siap menerima ketikan scanner TANPA kasir perlu klik dulu -- scanner fisik mengetik karakter+Enter
-     * ke elemen manapun yg SEDANG fokus, jadi begitu fokus "lepas" ke sesuatu yg bukan field isian (klik
-     * area kosong/kartu produk/tombol), kotak pencarian segera direbut fokusnya kembali. SENGAJA tidak
-     * mengganggu field lain yg memang sedang diisi kasir (mis. Uang Diterima, kolom modal Alasan
-     * Pembatalan/Top Up) -- hanya bertindak kalau elemen yg baru menerima fokus BUKAN input/textarea/
-     * select/contenteditable, supaya kasir tetap bisa mengetik normal di field lain apa pun.
+     * Ramah barcode scanner: kotak pencarian WAJIB selalu siap menerima ketikan scanner TANPA kasir
+     * perlu klik dulu -- scanner fisik mengetik karakter+Enter ke elemen manapun yg SEDANG fokus, jadi
+     * begitu fokus "lepas" ke sesuatu yg bukan field isian (klik area kosong/kartu produk/tombol),
+     * kotak pencarian segera direbut fokusnya kembali. Berlaku di KEDUA mode tampilan (Normal maupun
+     * Fokus Keranjang) -- awalnya hanya mode Fokus Keranjang, diperluas krn kasir yg pakai mode Normal
+     * pun ingin pengalaman scan yg sama tanpa perlu klik field dulu. SENGAJA tidak mengganggu field lain
+     * yg memang sedang diisi kasir (mis. Uang Diterima, kolom modal Alasan Pembatalan/Top Up) -- hanya
+     * bertindak kalau elemen yg baru menerima fokus BUKAN input/textarea/select/contenteditable, DAN
+     * tidak ada overlay/modal yg sedang terbuka (lihat {@link adaOverlayAktif}).
      */
-    function pastikanFokusPencarianModeFull() {
-        if (modeLayoutAktif !== 'keranjang-penuh') return;
+    function pastikanFokusPencarian() {
+        if (adaOverlayAktif()) return;
         const aktif = document.activeElement;
         if (aktif === elCariProduk) return;
         const tag = aktif ? aktif.tagName : '';
         const sedangDiInputLain = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (aktif && aktif.isContentEditable);
         if (!sedangDiInputLain) elCariProduk.focus();
     }
-    document.addEventListener('focusout', () => setTimeout(pastikanFokusPencarianModeFull, 50));
+    document.addEventListener('focusout', () => setTimeout(pastikanFokusPencarian, 50));
 
     elBtnModeKeranjangPenuh.addEventListener('click', () => terapkanModeLayout('keranjang-penuh'));
     elBtnModeNormal.addEventListener('click', () => terapkanModeLayout('normal'));
@@ -1750,6 +1790,50 @@
     let modeLayoutTersimpan = 'normal';
     try { modeLayoutTersimpan = localStorage.getItem(KUNCI_MODE_LAYOUT) || 'normal'; } catch (e) { /* abaikan */ }
     terapkanModeLayout(modeLayoutTersimpan);
+
+    // ==== Pintasan Keyboard F1-F9 -- kasir bekerja cepat tanpa mouse (label "F1".."F9" ditampilkan
+    // langsung di tombol masing2, lihat pos.html) ====
+
+    /**
+     * Deteksi modal/overlay APA PUN yg sedang terbuka di layar Kasir -- dipakai pintasan F1-F9 + auto-
+     * fokus pencarian ({@link pastikanFokusPencarian}) supaya TIDAK ikut memicu aksi atau mencuri fokus
+     * saat kasir sedang mengisi modal lain (Pilih Metode, Picker Member, Sesi Kas, Update Sistem, dst --
+     * semuanya memakai class bersama {@code .overlay.tampil}), atau saat layar sukses/muat penuh sedang
+     * tampil.
+     */
+    function adaOverlayAktif() {
+        if (document.querySelector('.overlay.tampil')) return true;
+        if (elLayarSukses.classList.contains('tampil')) return true;
+        if (elLayarMuat.className.indexOf('tersembunyi') === -1) return true;
+        return false;
+    }
+
+    /**
+     * Peta tombol F1-F9 -- fungsi (bukan elemen langsung) supaya tombol yg elemennya dipindah-pindah DOM
+     * (mis. {@code elCariProduk}, tidak relevan di sini tapi pola sama) atau baru dirender belakangan
+     * tetap ambil rujukan TERBARU. F1 Bantuan, F2 Bayar, F3 Tahan Keranjang, F4 Pilih Metode Pembayaran,
+     * F5 Pilih Member, F6 Buka Laci, F7 Full Layar/Tampilan Normal, F8 Sinkronkan, F9 Layar Pelanggan --
+     * urutan mengikuti alur kerja kasir yg paling sering dipakai duluan (checkout) ke yg jarang.
+     */
+    const PINTASAN_F_KEY = {
+        F1: () => document.getElementById('btnBantuan'),
+        F2: () => elBtnBayar,
+        F3: () => elBtnTahanKeranjang,
+        F4: () => elBtnPilihMetode,
+        F5: () => elBtnBukaPickerMember,
+        F6: () => elBtnBukaLaci,
+        F7: () => elBtnToggleFullLayarHeader,
+        F8: () => elBtnSync,
+        F9: () => elBtnLayarPelanggan
+    };
+    document.addEventListener('keydown', (event) => {
+        const ambilTombol = PINTASAN_F_KEY[event.key];
+        if (!ambilTombol) return;
+        event.preventDefault();
+        if (adaOverlayAktif()) return;
+        const tombol = ambilTombol();
+        if (tombol && !tombol.disabled) tombol.click();
+    });
 
     // ==== Fitur "Sesi Kasir" (Buka/Tutup Kas) -- mesin sama dgn versi JSP/ZK (SesiKasUtil di server) ====
 

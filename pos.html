@@ -125,6 +125,13 @@
     .search-dropdown .info-hasil .k { font-size: 10.5px; color: var(--muted); }
     .search-dropdown .harga-hasil { font-size: 12px; font-weight: 700; color: var(--primary); flex-shrink: 0; white-space: nowrap; }
     .search-dropdown .kosong-hasil { padding: 16px 12px; text-align: center; color: var(--faint); font-size: 12px; }
+    /* Nomor pintasan keyboard "1".."9","0" di tiap baris hasil pencarian -- gap-closure kasir memilih
+       hasil TANPA mouse (tekan angkanya langsung). Lihat listener keydown elCariProduk di pos-renderer.js. */
+    .search-dropdown .nomor-hasil {
+        width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg);
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        font-family: 'Consolas', 'Courier New', monospace; font-size: 10.5px; font-weight: 800; color: var(--muted);
+    }
     .btn-sync {
         background: var(--surface); color: var(--ink); border: 1.5px solid var(--border);
         border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
@@ -134,6 +141,20 @@
     .btn-sync:disabled { opacity: .5; cursor: not-allowed; }
     .btn-sync.aktif-lp { border-color: var(--success); background: var(--success-50); color: var(--success); }
     .btn-sync.ada-update { border-color: var(--warning); background: var(--warning-50); color: var(--warning); }
+
+    /* Label pintasan keyboard "F1".."F9" -- gap-closure kasir kerja cepat tanpa mouse, lihat peta
+       PINTASAN_F_KEY di pos-renderer.js. Ditempel di tombol yg punya pintasan, bentuk mirip label kunci
+       fisik (kotak kecil, monospace) supaya jelas beda dari teks tombol itu sendiri. */
+    .tombol-fkey {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 20px; height: 16px; padding: 0 4px; margin-right: 2px;
+        border: 1px solid currentColor; border-radius: 4px; opacity: .55;
+        font-family: 'Consolas', 'Courier New', monospace; font-size: 9.5px; font-weight: 700;
+        letter-spacing: .2px; line-height: 1;
+    }
+    button.btn-bayar .tombol-fkey, button.btn-buka-picker-member .tombol-fkey, button.pilih-metode .tombol-fkey {
+        border-color: rgba(255,255,255,.7); color: inherit;
+    }
 
     /* ---- Modal Update Sistem ---- */
     .modal-update { width: 460px; }
@@ -575,12 +596,12 @@
                 <button class="btn-sync" id="btnSesiKas" data-i18n-title="Buka/tutup sesi kas kasir" title="Buka/tutup sesi kas kasir">&#128176; Memeriksa kas...</button>
                 <button class="btn-sync" id="btnTopUpTopbar" data-i18n-title="Cari member mana pun dan isi saldonya" title="Cari member mana pun dan isi saldonya" style="display:none;">&#128179; <span data-i18n="Top Up">Top Up</span></button>
                 <button class="btn-sync" id="btnAkunSaya" data-i18n-title="Ganti kata sandi / tambah akun kasir" title="Ganti kata sandi / tambah akun kasir">&#128100; <span data-i18n="Akun Saya">Akun Saya</span></button>
-                <button class="btn-sync" id="btnLayarPelanggan" data-i18n-title="Buka/tutup Layar Pelanggan di monitor kedua" title="Buka/tutup Layar Pelanggan di monitor kedua">&#128421;&#65039; <span data-i18n="Layar Pelanggan">Layar Pelanggan</span></button>
+                <button class="btn-sync" id="btnLayarPelanggan" data-i18n-title="Buka/tutup Layar Pelanggan di monitor kedua (F9)" title="Buka/tutup Layar Pelanggan di monitor kedua (F9)"><span class="tombol-fkey">F9</span>&#128421;&#65039; <span data-i18n="Layar Pelanggan">Layar Pelanggan</span></button>
                 <button class="btn-sync" id="btnUpdateSistem" data-i18n-title="Periksa &amp; pasang versi terbaru aplikasi ini" title="Periksa &amp; pasang versi terbaru aplikasi ini">&#11014;&#65039; <span data-i18n="Update Sistem">Update Sistem</span></button>
-                <button class="btn-sync" id="btnBukaLaci" data-i18n-title="Buka laci kasir yang terhubung ke printer struk" title="Buka laci kasir yang terhubung ke printer struk">&#128176; <span data-i18n="Buka Laci">Buka Laci</span></button>
+                <button class="btn-sync" id="btnBukaLaci" data-i18n-title="Buka laci kasir yang terhubung ke printer struk (F6)" title="Buka laci kasir yang terhubung ke printer struk (F6)"><span class="tombol-fkey">F6</span>&#128176; <span data-i18n="Buka Laci">Buka Laci</span></button>
                 <button class="btn-sync" id="btnBukaLaciAlt" data-i18n-title="Laci tidak terbuka dgn tombol di atas? Beberapa printer memakai kabel pin berbeda -- coba ini." title="Laci tidak terbuka dgn tombol di atas? Beberapa printer memakai kabel pin berbeda -- coba ini." style="padding-left:8px;padding-right:8px;font-size:11px;">&#128295;</button>
-                <button class="btn-sync" id="btnSync">&#128260; <span data-i18n="Sinkronkan">Sinkronkan</span></button>
-                <button class="btn-sync" id="btnBantuan" data-topik="pos" data-i18n-title="Bantuan / panduan pakai layar ini" title="Bantuan / panduan pakai layar ini">&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
+                <button class="btn-sync" id="btnSync" title="Sinkronkan sekarang (F8)"><span class="tombol-fkey">F8</span>&#128260; <span data-i18n="Sinkronkan">Sinkronkan</span></button>
+                <button class="btn-sync" id="btnBantuan" data-topik="pos" data-i18n-title="Bantuan / panduan pakai layar ini (F1)" title="Bantuan / panduan pakai layar ini (F1)"><span class="tombol-fkey">F1</span>&#10067; <span data-i18n="Bantuan">Bantuan</span></button>
                 <div id="i18nSwitcher"></div>
             </div>
 
@@ -607,14 +628,14 @@
                         <h2>Keranjang</h2>
                         <span class="jumlah-item" id="jumlahItemBadge" style="display:none;"></span>
                         <div class="spacer" style="flex:1;"></div>
-                        <button type="button" class="btn-sync" id="btnToggleFullLayarHeader" style="padding:6px 10px;font-size:11px;" data-i18n-title="Tampilan keranjang penuh -- sembunyikan kotak produk" title="Tampilan keranjang penuh -- sembunyikan kotak produk">&#128722; <span data-i18n="Full Layar">Full Layar</span></button>
+                        <button type="button" class="btn-sync" id="btnToggleFullLayarHeader" style="padding:6px 10px;font-size:11px;" data-i18n-title="Tampilan keranjang penuh -- sembunyikan kotak produk (F7)" title="Tampilan keranjang penuh -- sembunyikan kotak produk (F7)"><span class="tombol-fkey">F7</span>&#128722; <span data-i18n="Full Layar">Full Layar</span></button>
                     </div>
                     <div class="cart-items" id="cartItems">
                         <div class="cart-kosong"><span class="ico">&#128722;</span>Belum ada produk dipilih.</div>
                     </div>
                     <div class="cart-footer">
-                        <button type="button" class="btn-buka-picker-member" id="btnBukaPickerMember">
-                            <span>&#128100;</span> <span data-i18n="Pilih member (opsional, wajib utk bayar Saldo)...">Pilih member (opsional, wajib utk bayar Saldo)...</span>
+                        <button type="button" class="btn-buka-picker-member" id="btnBukaPickerMember" title="Pilih member (F5)">
+                            <span class="tombol-fkey">F5</span><span>&#128100;</span> <span data-i18n="Pilih member (opsional, wajib utk bayar Saldo)...">Pilih member (opsional, wajib utk bayar Saldo)...</span>
                         </button>
                         <div class="member-chip" id="memberChip">
                             <span class="ico">&#128100;</span>
@@ -640,8 +661,8 @@
                             <div class="ringkasan-baris total"><span>Total</span><span id="ringkasTotal">Rp 0</span></div>
                         </div>
 
-                        <button type="button" class="pilih-metode" id="btnPilihMetode">
-                            <span>Metode Pembayaran</span>
+                        <button type="button" class="pilih-metode" id="btnPilihMetode" title="Pilih metode pembayaran (F4)">
+                            <span><span class="tombol-fkey">F4</span>Metode Pembayaran</span>
                             <span class="kanan" id="metodeTerpilihLabel">Pilih &#8250;</span>
                         </button>
 
@@ -652,8 +673,8 @@
                         <div class="kembalian" id="kembalianBox" style="display:none;">Kembalian: <span class="n" id="kembalianNilai">Rp 0</span></div>
 
                         <div style="display:flex;gap:8px;">
-                            <button type="button" class="btn-sync" id="btnTahanKeranjang" style="flex:0 0 auto;padding:0 14px;" title="Simpan keranjang ini, lanjutkan nanti dari menu Keranjang Tertahan" disabled>&#128188; <span data-i18n="Tahan">Tahan</span></button>
-                            <button class="btn-bayar" id="btnBayar" style="flex:1;" disabled>Bayar</button>
+                            <button type="button" class="btn-sync" id="btnTahanKeranjang" style="flex:0 0 auto;padding:0 14px;" title="Simpan keranjang ini, lanjutkan nanti dari menu Keranjang Tertahan (F3)" disabled><span class="tombol-fkey">F3</span>&#128188; <span data-i18n="Tahan">Tahan</span></button>
+                            <button class="btn-bayar" id="btnBayar" style="flex:1;" title="Bayar (F2)" disabled><span class="tombol-fkey">F2</span>Bayar</button>
                         </div>
                     </div>
                 </div>
