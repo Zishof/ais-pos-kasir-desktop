@@ -425,7 +425,10 @@
                 badge.textContent = '\u{1F512} PIN';
                 kartu.appendChild(badge);
             }
-            kartu.addEventListener('click', () => pilihDariPickerMember(m));
+            // Pola sama dgn dropdown cari produk (lihat JavaDoc mousedown baris-hasil di atas) --
+            // mousedown+preventDefault supaya klik tetap konsisten walau kartu ini {@code <div>} (bukan
+            // <button>, jadi risiko rebutan fokusnya lebih kecil, tapi disamakan utk keseragaman).
+            kartu.addEventListener('mousedown', (event) => { event.preventDefault(); pilihDariPickerMember(m); });
             elPickerDaftarMember.appendChild(kartu);
         });
     }
@@ -1727,7 +1730,15 @@
                 baris.querySelector('.n').textContent = p.nama;
                 baris.querySelector('.k').textContent = (p.kode || '') + (Number(p.stok) <= 0 ? ' · Habis' : '');
                 baris.querySelector('.harga-hasil').textContent = formatRupiah(p.hargaJual);
-                baris.addEventListener('click', () => pilihHasilPencarian(p));
+                // Gap-closure "klik mouse tidak memilih (padahal Ctrl+angka bisa)": dipasang di {@code
+                // mousedown} + {@code preventDefault()} (BUKAN {@code click}) -- mousedown pada
+                // <button> SECARA DEFAULT merebut fokus dari elCariProduk lebih dulu, memicu blur/
+                // focusout yg lalu berlomba dgn {@link pastikanFokusPencarian} (kotak pencarian selalu
+                // fokus, lihat JavaDoc di sana) utk merebut fokus balik -- pada mesin/koneksi tertentu
+                // perlombaan itu bisa menang SEBELUM event {@code click} sempat terdaftar, membuat baris
+                // terlihat responsif (hover jalan) tapi klik tak berefek. preventDefault() di mousedown
+                // mencegah fokus berpindah SAMA SEKALI, jadi tak ada blur yg perlu dilombakan.
+                baris.addEventListener('mousedown', (event) => { event.preventDefault(); pilihHasilPencarian(p); });
                 elSearchDropdown.appendChild(baris);
             });
         }
