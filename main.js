@@ -2128,6 +2128,13 @@ ipcMain.handle('pos:katalog', async (event, opsi) => {
         // membawa path file:// lokal (bukan URL remote), lihat JavaDoc unduhCacheGambarProduk.
         await unduhCacheGambarProduk(hasil.data.produk);
         localDb.simpanCache('katalog', hasil.data);
+        // Sekalian segarkan cache PER-BARIS (produk_cache) di setiap live load yg berhasil -- SEBELUMNYA
+        // hanya diperbarui via tombol "Sinkronkan"/siklus berkala 10 menit, jadi layar Katalog Barang
+        // bisa tampil sedikit basi sesaat sesudah admin mengubah produk lewat perangkat LAIN. Dilewati
+        // utk "Semua Toko" -- cache ini cuma utk toko yg sedang login (lihat JavaDoc produkCacheSemua).
+        if (!(opsi && opsi.semuaToko)) {
+            try { localDb.gantiSemuaProdukCache(hasil.data.produk); } catch (eCache) { /* cache sekunder -- kegagalannya tak boleh menggagalkan respons katalog utama */ }
+        }
         return { ok: true, data: hasil.data, fromCache: false };
     }
     if (hasil.offline) {
@@ -2174,6 +2181,20 @@ ipcMain.handle('pos:produk-cache-ringkasan', async () => ({ ok: true, data: loca
 ipcMain.handle('pos:produk-cache-kasir', async () => {
     try {
         return { ok: true, data: localDb.produkCacheUntukKasir() };
+    } catch (e) {
+        return { ok: false, pesan: 'Gagal membaca cache produk lokal: ' + (e && e.message ? e.message : e) };
+    }
+});
+/**
+ * Gap-closure "layar Katalog Barang (admin) macet lama saat internet lambat" -- padanan {@code
+ * pos:produk-cache-kasir} tapi TERMASUK produk Non-Aktif (lihat JavaDoc {@code localDb.produkCacheSemua}).
+ * SAMA seperti pasangan Kasir-nya: baca lokal murni, tidak pernah menyentuh jaringan, respons nyaris
+ * instan. Dipakai {@code produk-renderer.js} utk tampilan SEKETIKA sebelum live dicoba di latar
+ * belakang (lihat {@code muatDaftarProduk}).
+ */
+ipcMain.handle('pos:produk-cache-semua', async () => {
+    try {
+        return { ok: true, data: localDb.produkCacheSemua() };
     } catch (e) {
         return { ok: false, pesan: 'Gagal membaca cache produk lokal: ' + (e && e.message ? e.message : e) };
     }

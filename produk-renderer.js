@@ -321,11 +321,24 @@
         // sengaja mencentang lepas. Dihitung di sini (bukan saat muatDaftarProduk) supaya
         // centang/lepas checkbox langsung re-filter tanpa perlu fetch ulang ke server.
         const hanyaAktif = !!(elChkHanyaAktifProduk && elChkHanyaAktifProduk.checked);
-        const daftarTampil = hanyaAktif ? daftarProduk.filter((p) => p.aktif !== false) : daftarProduk;
+        let daftarTampil = hanyaAktif ? daftarProduk.filter((p) => p.aktif !== false) : daftarProduk;
+        // Filter kata kunci JUGA murni DI SISI KLIEN (pola SAMA dgn "Hanya Aktif" di atas) -- gap-closure
+        // "Katalog Barang macet lama saat internet lambat": SEBELUMNYA tiap keystroke memicu fetch baru
+        // ke server (lihat elCariProduk.addEventListener di bawah), skarang daftarProduk sudah termuat
+        // PENUH sejak awal (cache lokal instan + live di latar belakang, lihat muatDaftarProduk) jadi
+        // mencari cukup menyaring array yg sudah ada, tanpa round-trip jaringan sama sekali.
+        const kw = (elCariProduk.value || '').trim().toLowerCase();
+        if (kw) {
+            daftarTampil = daftarTampil.filter((p) =>
+                (p.nama || '').toLowerCase().indexOf(kw) >= 0
+                || (p.kode || '').toLowerCase().indexOf(kw) >= 0
+                || (p.barcode || '').toLowerCase().indexOf(kw) >= 0);
+        }
         if (!daftarTampil.length) {
             elIsiHalaman.innerHTML = '<div class="kartu-panel"><div class="daftar-kosong"><span class="ico">&#128230;</span>'
                 + (!daftarProduk.length
                     ? (bolehKelolaProduk() ? 'Belum ada produk. Klik "Tambah Produk" untuk mulai.' : 'Belum ada produk di toko ini.')
+                    : kw ? 'Tidak ada produk yang cocok dgn kata kunci "' + escapeHtmlLokal(kw) + '".'
                     : 'Tidak ada produk AKTIF yang cocok -- lepas centang "Hanya Aktif" utk melihat produk Non-Aktif juga.') + '</div></div>';
             return;
         }
@@ -389,39 +402,84 @@
         });
     }
 
-    async function muatDaftarProduk(keyword) {
-        elLayarMuat.className = 'layar-penuh';
+    /** Sudah pernah tampil sekali sesi ini (cache lokal ATAU live) -- lihat JavaDoc muatDaftarProduk. */
+    let katalogDimuatSekaliDariCache = false;
+
+    /**
+     * Ambil katalog LIVE dari server + render -- selalu dipanggil (baik sesudah cache-first paint
+     * MAUPUN langsung bila tidak ada cache) supaya data yg ditampilkan tetap dijamin sinkron dgn
+     * server. Overlay blocking penuh HANYA ditampilkan kalau BELUM ada apa pun di layar sama sekali
+     * (baris pertama sesi ini) ATAU mode "Semua Toko" (tidak py cache lintas-toko) -- di luar itu
+     * (mis. refresh diam2 pasca simpan/hapus, atau live-refresh susulan sesudah cache-first paint)
+     * dibiarkan berjalan DI LATAR BELAKANG tanpa mengunci layar, kasir/admin tetap bisa lihat data
+     * (sedikit basi sesaat) sambil menunggu.
+     */
+    async function muatDaftarProdukLive(semuaToko) {
+        const perluOverlay = !katalogDimuatSekaliDariCache || semuaToko;
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
-            const semuaToko = !!(elChkSemuaTokoProduk && elChkSemuaTokoProduk.checked);
-            const r = await window.electronAPI.posAPI.katalog({ keyword: keyword || undefined, semuaToko: semuaToko });
+            const r = await window.electronAPI.posAPI.katalog({ semuaToko: semuaToko });
             if (!r.ok) {
-                window.PesanDetail.tampilkanDariHasil(r);
-                daftarProduk = []; daftarKategori = [];
-                renderIsiHalaman();
+                if (perluOverlay) {
+                    window.PesanDetail.tampilkanDariHasil(r);
+                    daftarProduk = []; daftarKategori = [];
+                    renderIsiHalaman();
+                } else {
+                    tampilkanToast('error', 'Gagal memperbarui katalog dari server -- masih menampilkan data cache lokal terakhir.');
+                }
                 return;
             }
             // Katalog TERSARING per kategori aktif yg dipilih kasir di layar Kasir tidak relevan di sini
             // -- data mentah r.data.produk/r.data.kategori SUDAH mencakup seluruh produk toko ini.
             daftarProduk = r.data.produk || [];
             daftarKategori = r.data.kategori || [];
+            katalogDimuatSekaliDariCache = true;
             stateProduk.page = 1;
             isiDropdownKategori();
             renderIsiHalaman();
+            if (!semuaToko) muatRingkasanCacheProduk(); // cache lokal ikut disegarkan server-side, lihat main.js pos:katalog
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat katalog: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat katalog: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }
     }
 
+    /**
+     * Muat daftar produk -- gap-closure "Memuat katalog barang... macet lama saat internet lambat"
+     * (layar ini SEBELUMNYA selalu menunggu server, bisa sampai 15 detik, sebelum menampilkan APA PUN).
+     * Kalau bukan mode "Semua Toko" (yg tidak py cache lintas-toko), cache lokal ({@code produk_cache},
+     * sudah ada dari sinkron berkala/manual/live sebelumnya) ditampilkan SEKETIKA lebih dulu (murni baca
+     * SQLite, nyaris instan) SEBELUM live dicoba -- kasir/admin tidak pernah lagi menatap layar kosong
+     * menunggu jaringan utk MELIHAT data yg sebenarnya sudah ada. Live TETAP selalu dicoba sesudahnya
+     * (lihat muatDaftarProdukLive) supaya data yg ditampilkan tetap terjamin sinkron server.
+     */
+    async function muatDaftarProduk() {
+        const semuaToko = !!(elChkSemuaTokoProduk && elChkSemuaTokoProduk.checked);
+        if (!semuaToko && !katalogDimuatSekaliDariCache) {
+            try {
+                const rCache = await window.electronAPI.posAPI.produk.cacheSemua();
+                if (rCache.ok && rCache.data && rCache.data.produk.length > 0) {
+                    daftarProduk = rCache.data.produk;
+                    daftarKategori = rCache.data.kategori;
+                    isiDropdownKategori();
+                    renderIsiHalaman();
+                }
+            } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa, overlay tetap tampil */ }
+        }
+        await muatDaftarProdukLive(semuaToko);
+    }
+
     elCariProduk.addEventListener('input', () => {
         clearTimeout(cariTimer);
-        cariTimer = setTimeout(() => muatDaftarProduk(elCariProduk.value.trim()), 350);
+        // Filter kata kunci MURNI DI KLIEN (lihat renderIsiHalaman) -- daftarProduk sudah termuat penuh
+        // (cache lokal/live) sejak layar dibuka, jadi tidak perlu round-trip server per keystroke lagi.
+        cariTimer = setTimeout(() => { stateProduk.page = 1; renderIsiHalaman(); }, 200);
     });
     if (elChkSemuaTokoProduk) {
         elChkSemuaTokoProduk.addEventListener('change', () => {
             stateProduk.page = 1;
-            muatDaftarProduk(elCariProduk.value.trim());
+            muatDaftarProduk();
         });
     }
     if (elChkHanyaAktifProduk) {
@@ -864,6 +922,17 @@
         return isNaN(n) ? 0 : n;
     }
 
+    /**
+     * Nama kolom yg GAGAL ditemukan di file Excel yg baru saja diunggah (lihat balikan server
+     * {@code kolomTidakDitemukan}, JavaDoc {@code KantinHelper.produkImporExcelPreview}) -- KOSONG
+     * berarti semua kolom terbaca normal. Dipakai {@link #bukaReviewImpor} (tampilkan peringatan di
+     * layar) DAN tombol Simpan (JavaDoc {@code elBtnReviewSimpan}) -- gap-closure "Stok Baru selalu 0
+     * tanpa peringatan apa pun": kalau kolom Stok/Harga tak ditemukan, SETIAP baris otomatis kebaca 0
+     * utk kolom itu, berisiko menimpa data stok/harga ASLI jadi 0 kalau supervisor tak sadar & tetap
+     * klik Simpan -- peringatan ini WAJIB terlihat SEBELUM itu terjadi, bukan sesudahnya.
+     */
+    let kolomImporTidakDitemukan = [];
+
     function bukaReviewImpor(data) {
         reviewRows = (data.baris || []).map((b) => ({
             no: b.no, kode: b.kode, barcode: b.barcode, nama: b.nama, baru: !!b.baru,
@@ -877,7 +946,15 @@
         elReviewTbody.innerHTML = reviewRows.map(renderBarisReview).join('');
         const baruCount = reviewRows.filter((r) => r.baru).length;
         elReviewSub.textContent = reviewRows.length + ' baris (' + baruCount + ' produk baru, ' + (reviewRows.length - baruCount) + ' diperbarui)';
-        elReviewFooterInfo.textContent = 'Periksa/ubah data di bawah sebelum menyimpan.';
+        kolomImporTidakDitemukan = data.kolomTidakDitemukan || [];
+        if (kolomImporTidakDitemukan.length) {
+            elReviewFooterInfo.innerHTML = '<span style="color:var(--danger,#dc2626);font-weight:800;">'
+                + '&#9888; Kolom ' + kolomImporTidakDitemukan.join(', ') + ' TIDAK ditemukan di file ini -- '
+                + 'SEMUA baris di bawah otomatis dibaca 0 utk kolom itu. Periksa nama header di file Excel Anda, '
+                + 'JANGAN klik Simpan sebelum yakin ini memang benar.</span>';
+        } else {
+            elReviewFooterInfo.textContent = 'Periksa/ubah data di bawah sebelum menyimpan.';
+        }
         elOverlayReviewImpor.classList.add('tampil');
     }
 
@@ -1127,6 +1204,14 @@
                 ? '\n\n⚠️ "Nonaktifkan produk yang TIDAK ada di file ini" TERCENTANG -- SETELAH ' + reviewRows.length
                     + ' baris ini tersimpan, SEMUA produk toko ini yang masih aktif tapi TIDAK muncul di file ini akan DINONAKTIFKAN (bukan dihapus, bisa diaktifkan lagi manual). Pastikan file ini benar-benar berisi SELURUH katalog toko, bukan sebagian.'
                 : '')
+        )) return;
+        // Gap-closure "Stok Baru selalu 0 tanpa peringatan" -- lihat JavaDoc kolomImporTidakDitemukan.
+        // Konfirmasi KEDUA yg terpisah & lebih tegas (bukan cuma banner di layar yg bisa lewat tak
+        // dibaca) SEBELUM benar2 menimpa data -- klik "Cancel" di sini membatalkan simpan sepenuhnya.
+        if (kolomImporTidakDitemukan.length && !confirm(
+            '⚠️ PERINGATAN: kolom ' + kolomImporTidakDitemukan.join(', ') + ' TIDAK ditemukan di file Excel ini.\n\n'
+            + 'SEMUA baris akan menyimpan 0 utk kolom itu -- ini KEMUNGKINAN BESAR akan MENGHAPUS data stok/harga asli produk yang sudah ada.\n\n'
+            + 'Yakin tetap ingin melanjutkan? Klik "Cancel" utk membatalkan dan memeriksa ulang file Excel Anda (nama header kolom mungkin tidak dikenali).'
         )) return;
 
         elBtnReviewSimpan.disabled = true;

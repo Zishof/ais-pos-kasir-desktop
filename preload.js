@@ -421,6 +421,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
             sinkronManual: () => ipcRenderer.invoke('pos:produk-sinkron-manual'),
             /** @return {Promise<{ok:boolean, data:{total:number, disinkronPada:?string}}>} status cache lokal produk TERKINI (tanpa memicu sinkron baru). */
             cacheRingkasan: () => ipcRenderer.invoke('pos:produk-cache-ringkasan'),
+            /** @return {Promise<{ok:boolean, data?:{produk:object[], kategori:Array<{id:?number,nama:string}>, disinkronPada:?string}, pesan?:string}>} cache lokal SEMUA produk (termasuk Non-Aktif) -- dipakai tampilan seketika layar Katalog Barang, lihat JavaDoc pos:produk-cache-semua di main.js. */
+            cacheSemua: () => ipcRenderer.invoke('pos:produk-cache-semua'),
             /** @return {Promise<{ok:boolean, data?:{fileBase64:string, namaFile:string, total:number}, pesan?:string}>} */
             eksporExcel: (payload) => ipcRenderer.invoke('pos:produk-ekspor-excel', payload),
             /** @param {{fileBase64:string, namaBerkas?:string}} opsi @return {Promise<{ok:boolean, path?:string, dibatalkan?:boolean, pesan?:string}>} */

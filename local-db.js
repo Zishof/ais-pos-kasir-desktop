@@ -635,11 +635,6 @@ function gantiSemuaProdukCache(daftar) {
     return { total: daftar.length, disinkronPada: sekarang };
 }
 
-/** @return {object[]} seluruh baris produk_cache -- dipakai fallback offline layar Produk. */
-function produkCacheSemua() {
-    return getDb().prepare(`SELECT * FROM produk_cache ORDER BY nama ASC`).all();
-}
-
 /**
  * Gap-closure "layar Kasir HANYA baca produk_cache lokal (sangat ringan), jangan pernah panggil
  * server utk daftar produk utama" -- BEDA dari {@link #produkCacheSemua} (dipakai layar admin Produk
@@ -674,6 +669,44 @@ function produkCacheUntukKasir() {
         .map(([id, nama]) => ({ id, nama }))
         .sort((a, b) => a.nama.localeCompare(b.nama));
     return { produk, kategori };
+}
+
+/**
+ * SAMA PERSIS pola {@link #produkCacheUntukKasir} tapi TANPA filter {@code aktif=1} -- dipakai layar
+ * admin "Katalog Barang" (produk-renderer.js) yg memang perlu melihat produk Non-Aktif juga (checkbox
+ * "Hanya Aktif", default tercentang tapi bisa dilepas). Gap-closure "Memuat katalog barang... macet
+ * lama saat internet lambat": layar ini SEBELUMNYA selalu menunggu server (bisa sampai 15 detik),
+ * padahal baris cache ini SUDAH ada dari sinkron berkala/manual sebelumnya -- dipakai utk tampilan
+ * SEKETIKA sementara data live tetap diminta di latar belakang utk memastikan yg terbaru (lihat
+ * muatDaftarProduk di produk-renderer.js). CATATAN: kolom {@code satuanNama}/{@code pemasokNama}
+ * (dipakai fitur Cetak PDF/Unduh Excel) TIDAK ada di {@code produk_cache} (skema lebih ramping drpd
+ * respons server penuh) -- akan kosong sementara sampai data live menggantikannya, bukan bug.
+ * @return {{produk:object[], kategori:Array<{id:?number,nama:string}>, disinkronPada:?string}}
+ */
+function produkCacheSemua() {
+    const baris = getDb().prepare(`SELECT * FROM produk_cache ORDER BY nama ASC`).all();
+    const produk = baris.map((p) => ({
+        id: p.id,
+        kode: p.kode || '',
+        barcode: p.barcode || '',
+        nama: p.nama || '',
+        kategoriId: p.kategori_id,
+        kategoriNama: p.kategori_nama || '',
+        hargaBeli: p.harga_beli || 0,
+        hargaJual: p.harga_jual || 0,
+        stok: p.stok || 0,
+        aktif: !!p.aktif,
+        izinkanJualMinusStok: !!p.izinkan_jual_minus_stok,
+        keterangan: p.keterangan || '',
+        gambarUrl: p.gambar_url || null
+    }));
+    const petaKategori = new Map();
+    produk.forEach((p) => { if (p.kategoriId != null && !petaKategori.has(p.kategoriId)) petaKategori.set(p.kategoriId, p.kategoriNama); });
+    const kategori = Array.from(petaKategori.entries())
+        .map(([id, nama]) => ({ id, nama }))
+        .sort((a, b) => a.nama.localeCompare(b.nama));
+    const terbaru = getDb().prepare(`SELECT MAX(diperbarui_pada) AS w FROM produk_cache`).get();
+    return { produk, kategori, disinkronPada: terbaru ? terbaru.w : null };
 }
 
 /** @return {{total:number, disinkronPada:?string}} jumlah baris cache + waktu sinkron penuh TERAKHIR (dari baris manapun, semua ditulis serentak dlm 1 transaksi jadi nilainya seragam). */
