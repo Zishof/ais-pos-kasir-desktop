@@ -335,8 +335,45 @@
         elBtnHalBerikutnya.disabled = trxState.page >= totalHal;
     }
 
+    /** Murni render -- dipakai BERSAMA oleh paint cache SEKETIKA dan hasil live (lihat muatTabUmum), supaya kedua jalur menggambar persis sama, tidak ada logika ganda yang bisa saling menyimpang. */
+    function renderDataUmum(d) {
+        isiKpi('HariIni', d.kpi.hariIni);
+        isiKpi('Minggu', d.kpi.mingguIni);
+        isiKpi('Bulan', d.kpi.bulanIni);
+        isiKpi('Semester', d.kpi.semesterIni);
+
+        buatBarVertikal(elChartTren, (d.tren || []).map((t) => ({ label: t.label, nilai: t.jumlah })), { formatNilai: (n) => formatAngka(n) + ' transaksi' });
+        buatBarHorizontal(document.getElementById('chartOmzetKategori'), (d.omzetKategori || []).map((k) => ({ label: k.label, nilai: k.nilai })), { formatNilai: (n) => formatRupiah(n) });
+        buatStackProporsional(document.getElementById('stackMetodeUmum'), (d.metodeBayar || []).map((m) => ({ label: m.label, nilai: m.nilai })), { formatNilai: (n) => formatRupiah(n) });
+        buatBarHorizontal(document.getElementById('chartJamSibukUmum'), (d.jamSibuk || []).map((j) => ({ label: j.label, nilai: j.nilai })), { formatNilai: (n) => formatAngka(n) + ' transaksi' });
+
+        trxState.totalTrx = d.transaksi.total;
+        trxState.dataTrx = d.transaksi.data;
+        renderTabelTransaksi(d.transaksi.data);
+        renderPaginasiTrx();
+    }
+
+    // Gap-closure "layar Ringkasan (tab PERTAMA yg dilihat begitu login) selalu blank+spinner
+    // menunggu server" (deep-analysis performa RAM 8GB) -- HANYA paint SEKETIKA dari potret TERAKHIR
+    // yg pernah sukses (bisa dari filter/sesi SEBELUMNYA, jadi bisa sedikit basi) sebelum panggilan
+    // live (TETAP SELALU dipanggil, TIDAK PERNAH digantikan) selesai. Kontrak "data analitik WAJIB
+    // terkini, TIDAK ADA fallback offline" di JavaDoc pos:dashboard-umum (main.js) TIDAK berubah --
+    // kalau live gagal/offline, tetap tampil error apa adanya (lihat catch di bawah), TIDAK diam-diam
+    // membiarkan potret cache ini dikira data terkini.
+    let ringkasanUmumDimuatSekaliDariCache = false;
+
+    async function muatTabUmumDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.dashboard.umumCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderDataUmum(rCache.data);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa, overlay tetap tampil */ }
+    }
+
     async function muatTabUmum() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !ringkasanUmumDimuatSekaliDariCache;
+        if (!ringkasanUmumDimuatSekaliDariCache) await muatTabUmumDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const payload = {
                 periodeTren: elSelPeriodeTren.value,
@@ -345,24 +382,8 @@
             };
             const hasil = await window.electronAPI.posAPI.dashboard.umum(payload);
             if (!hasil.ok) { tampilkanErrorTab('Gagal Memuat Ringkasan Umum', hasil); return; }
-            const d = hasil.data;
-
-            isiKpi('HariIni', d.kpi.hariIni);
-            isiKpi('Minggu', d.kpi.mingguIni);
-            isiKpi('Bulan', d.kpi.bulanIni);
-            isiKpi('Semester', d.kpi.semesterIni);
-
-            buatBarVertikal(elChartTren, (d.tren || []).map((t) => ({ label: t.label, nilai: t.jumlah })), { formatNilai: (n) => formatAngka(n) + ' transaksi' });
-            buatBarHorizontal(document.getElementById('chartOmzetKategori'), (d.omzetKategori || []).map((k) => ({ label: k.label, nilai: k.nilai })), { formatNilai: (n) => formatRupiah(n) });
-            buatStackProporsional(document.getElementById('stackMetodeUmum'), (d.metodeBayar || []).map((m) => ({ label: m.label, nilai: m.nilai })), { formatNilai: (n) => formatRupiah(n) });
-            buatBarHorizontal(document.getElementById('chartJamSibukUmum'), (d.jamSibuk || []).map((j) => ({ label: j.label, nilai: j.nilai })), { formatNilai: (n) => formatAngka(n) + ' transaksi' });
-
-            trxState.totalTrx = d.transaksi.total;
-            trxState.dataTrx = d.transaksi.data;
-            renderTabelTransaksi(d.transaksi.data);
-            renderPaginasiTrx();
-
-            const userId = ''; // toko sudah diisi via konfigurasi() saat init
+            ringkasanUmumDimuatSekaliDariCache = true;
+            renderDataUmum(hasil.data);
         } catch (e) {
             tampilkanErrorTab('Gagal Memuat Ringkasan Umum', e);
         } finally {

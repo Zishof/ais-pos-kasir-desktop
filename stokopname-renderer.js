@@ -302,9 +302,34 @@
         return tgl;
     }
 
+    /** Murni render -- dipakai BERSAMA oleh paint cache SEKETIKA dan hasil live (lihat muatDashboard). */
+    function renderDashboardMutasi(d) {
+        elKpiBarangMasuk.textContent = formatAngka(d.barangMasuk);
+        elKpiBarangKeluar.textContent = formatAngka(d.barangKeluar);
+        elKpiTotalStok.textContent = formatAngka(d.totalStok);
+        elKpiStokKritis.textContent = formatAngka(d.stokKritis);
+        buatBarVertikalGanda(elChartTrenMutasi, (d.trend || []).map((t) => ({ label: labelTanggalRingkas(t.tanggal), masuk: t.masuk, keluar: t.keluar })));
+        buatBarHorizontal(elChartTop5Keluar, (d.top5Keluar || []).map((t) => ({ label: t.nama, nilai: t.qty })));
+    }
+
+    // Gap-closure "Dashboard Mutasi Barang selalu blank+spinner" (deep-analysis performa RAM 8GB) --
+    // pola sama pos:dashboard-umum: paint SEKETIKA dari potret sukses TERAKHIR (periode berbeda pun
+    // tak masalah, sekadar tampilan awal), SELALU diikuti panggilan live dgn periode yg BENAR-BENAR
+    // dipilih (TIDAK PERNAH digantikan).
+    let dashboardMutasiDimuatSekaliDariCache = false;
+    async function muatDashboardDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.stokOpname.dashboardCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderDashboardMutasi(rCache.data);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatDashboard() {
-        elChartTrenMutasi.innerHTML = '<div class="daftar-kosong">Memuat...</div>';
-        elChartTop5Keluar.innerHTML = '<div class="daftar-kosong">Memuat...</div>';
+        if (!dashboardMutasiDimuatSekaliDariCache) await muatDashboardDariCache();
+        else {
+            elChartTrenMutasi.innerHTML = '<div class="daftar-kosong">Memuat...</div>';
+            elChartTop5Keluar.innerHTML = '<div class="daftar-kosong">Memuat...</div>';
+        }
         try {
             const r = await window.electronAPI.posAPI.stokOpname.dashboard({ periode: elSelPeriodeDashboard.value });
             if (!r.ok) {
@@ -313,13 +338,8 @@
                 elChartTop5Keluar.innerHTML = '<div class="daftar-kosong">Gagal memuat.</div>';
                 return;
             }
-            const d = r.data;
-            elKpiBarangMasuk.textContent = formatAngka(d.barangMasuk);
-            elKpiBarangKeluar.textContent = formatAngka(d.barangKeluar);
-            elKpiTotalStok.textContent = formatAngka(d.totalStok);
-            elKpiStokKritis.textContent = formatAngka(d.stokKritis);
-            buatBarVertikalGanda(elChartTrenMutasi, (d.trend || []).map((t) => ({ label: labelTanggalRingkas(t.tanggal), masuk: t.masuk, keluar: t.keluar })));
-            buatBarHorizontal(elChartTop5Keluar, (d.top5Keluar || []).map((t) => ({ label: t.nama, nilai: t.qty })));
+            dashboardMutasiDimuatSekaliDariCache = true;
+            renderDashboardMutasi(r.data);
         } catch (e) {
             elChartTrenMutasi.innerHTML = '<div class="daftar-kosong">Gagal memuat: ' + escHtml(e && e.message ? e.message : e) + '</div>';
             elChartTop5Keluar.innerHTML = '';

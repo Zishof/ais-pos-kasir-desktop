@@ -134,6 +134,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         dashboard: {
             /** @param {{periodeTren?:string, tglMulai?:string, tglSampai?:string, cariPembeli?:string, page?:number, pageSize?:number}} payload */
             umum: (payload) => ipcRenderer.invoke('pos:dashboard-umum', payload),
+            /** Baca-saja, murni cache lokal (potret respons {@link #umum} sukses TERAKHIR) -- dipakai paint SEKETIKA sebelum panggilan live selesai. @return {Promise<{ok:boolean, data:?object, disimpanPada:?string, pesan?:string}>} */
+            umumCacheBaca: () => ipcRenderer.invoke('pos:dashboard-umum-cache-baca'),
             keuangan: () => ipcRenderer.invoke('pos:dashboard-keuangan'),
             /** @param {{periode?:string}} payload */
             produk: (payload) => ipcRenderer.invoke('pos:dashboard-produk', payload),
@@ -167,7 +169,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
             /** @param {{tglMulai?:string, tglSampai?:string, cariPembeli?:string, page?:number, pageSize?:number}} payload */
             payment: (payload) => ipcRenderer.invoke('pos:laporan-payment-list', payload),
             /** Dasbor KPI+breakdown per-kasir/per-mesin (gap-closure paritas Produk), fallback ke cache lokal saat offline. @return {Promise<{ok:boolean, data?:object, dariCache?:boolean, disimpanPada?:string, offline?:boolean, pesan?:string}>} */
-            statistik: () => ipcRenderer.invoke('pos:transaksi-statistik')
+            statistik: () => ipcRenderer.invoke('pos:transaksi-statistik'),
+            /** Baca-saja, murni cache lokal (potret {@link #order} sukses TERAKHIR) -- paint SEKETIKA sebelum live selesai. Dipakai BERSAMA oleh tab Order Laporan Transaksi & layar Riwayat Penjualan (channel IPC sama). */
+            orderCacheBaca: () => ipcRenderer.invoke('pos:laporan-order-list-cache-baca'),
+            /** Baca-saja, murni cache lokal (potret {@link #sesi} sukses TERAKHIR). */
+            sesiCacheBaca: () => ipcRenderer.invoke('pos:laporan-sesi-list-cache-baca'),
+            /** Baca-saja, murni cache lokal (potret {@link #payment} sukses TERAKHIR). */
+            paymentCacheBaca: () => ipcRenderer.invoke('pos:laporan-payment-list-cache-baca')
         },
         /** Status cache lokal Pesanan (gap-closure indikator "terakhir disinkron" paritas Produk/Anggota), lihat JavaDoc handler {@code pos:pesanan-cache-info} di main.js. */
         pesananCacheInfo: () => ipcRenderer.invoke('pos:pesanan-cache-info'),
@@ -186,7 +194,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
             /** Daftar catatan hari ini dari server (gap-closure) -- @param {{limit?:number}} [payload] */
             riwayat: (payload) => ipcRenderer.invoke('pos:stokopname-riwayat', payload || {}),
             /** Dashboard "Mutasi Barang" (gap-closure, padanan JSP stok/mutasi_stok.jsp) -- @param {{periode?:string}} [payload] */
-            dashboard: (payload) => ipcRenderer.invoke('pos:stokopname-dashboard', payload || {})
+            dashboard: (payload) => ipcRenderer.invoke('pos:stokopname-dashboard', payload || {}),
+            /** Baca-saja, murni cache lokal (potret {@link #dashboard} sukses TERAKHIR) -- paint SEKETIKA sebelum live selesai. */
+            dashboardCacheBaca: () => ipcRenderer.invoke('pos:stokopname-dashboard-cache-baca')
         },
 
         /**
@@ -198,7 +208,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
             /** @param {{keyword?:string, page?:number, page_size?:number}} payload */
             list: (payload) => ipcRenderer.invoke('pos:kulakan-list', payload),
             /** @param {{produk_id:number, nomor_faktur?:string, nama_supplier?:string, qty:number, harga_beli_satuan:number, keterangan?:string}} payload */
-            simpan: (payload) => ipcRenderer.invoke('pos:kulakan-simpan', payload)
+            simpan: (payload) => ipcRenderer.invoke('pos:kulakan-simpan', payload),
+            /** Baca-saja, murni cache lokal (potret {@link #list} sukses TERAKHIR) -- paint SEKETIKA sebelum live selesai. */
+            listCacheBaca: () => ipcRenderer.invoke('pos:kulakan-list-cache-baca')
         },
 
         /**
@@ -209,6 +221,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         returPenjualan: {
             /** @param {{keyword?:string, toko_id?:string, page?:number, page_size?:number}} payload */
             list: (payload) => ipcRenderer.invoke('pos:retur-penjualan-list', payload),
+            /** Baca-saja, murni cache lokal (potret {@link #list} sukses TERAKHIR) -- paint SEKETIKA sebelum live selesai. */
+            listCacheBaca: () => ipcRenderer.invoke('pos:retur-penjualan-list-cache-baca'),
             /** @param {{pembelian_anggota_koperasi_id?:number, kode_transaksi_asal?:string, nama_pembeli?:string, metode_pengembalian?:string, items:Array<{produk_id:number, qty:number, harga_satuan:number, alasan?:string, kondisi_barang?:string, kembalikan_ke_stok?:boolean}>}} payload */
             simpan: (payload) => ipcRenderer.invoke('pos:retur-penjualan-simpan', payload),
             /** @param {{id:number, qty?:number, harga_satuan?:number, alasan?:string, kondisi_barang?:string, kembalikan_ke_stok?:boolean, metode_pengembalian?:string, keterangan?:string}} payload */
@@ -392,7 +406,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
             /** @return {Promise<{ok:boolean, data?:{data:Array<{id:number, nama:string}>}, pesan?:string}>} */
             tipeList: () => ipcRenderer.invoke('pos:anggota-tipe-list'),
             /** Dasbor statistik anggota (gap-closure paritas Produk), lihat JavaDoc server {@code KantinHelper.anggotaStatistik}. @return {Promise<{ok:boolean, data?:{totalAnggota,totalAktif,totalNonaktif,totalWajibPin,byJenis:Array<{label,jumlah}>}, pesan?:string}>} */
-            statistik: () => ipcRenderer.invoke('pos:anggota-statistik')
+            statistik: () => ipcRenderer.invoke('pos:anggota-statistik'),
+            /** SELURUH cache lokal anggota (murni baca SQLite, tanpa jaringan) -- dipakai paint SEKETIKA sebelum {@link #list} selesai, pola sama {@code produk.cacheSemua}. @return {Promise<{ok:boolean, data?:Array<object>, pesan?:string}>} */
+            cacheSemua: () => ipcRenderer.invoke('pos:anggota-cache-semua')
         },
 
         /**
@@ -403,7 +419,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
             /** @param {{keyword?:string, page?:number, page_size?:number}} payload @return {Promise<{ok:boolean, data?:{data:Array<object>, total:number}, pesan?:string}>} */
             list: (payload) => ipcRenderer.invoke('pos:diskon-list', payload),
             /** @param {object} payload lihat JavaDoc server diskonSimpan @return {Promise<{ok:boolean, data?:{id:number}, pesan?:string}>} */
-            simpan: (payload) => ipcRenderer.invoke('pos:diskon-simpan', payload)
+            simpan: (payload) => ipcRenderer.invoke('pos:diskon-simpan', payload),
+            /** Baca-saja, murni cache lokal (potret {@link #list} sukses TERAKHIR) -- paint SEKETIKA sebelum live selesai. */
+            listCacheBaca: () => ipcRenderer.invoke('pos:diskon-list-cache-baca')
         },
         /**
          * Layar "Katalog Barang" (produk.html, khusus supervisor) -- daftar produk dibaca lewat

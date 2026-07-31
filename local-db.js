@@ -717,6 +717,36 @@ function ringkasanProdukCache() {
 }
 
 /**
+ * SELURUH baris {@code anggota_cache}, dipetakan ke bentuk camelCase SAMA PERSIS dgn respons server
+ * {@code anggota_list} -- dipakai layar admin Anggota (anggota-renderer.js) utk paint SEKETIKA
+ * sebelum panggilan live selesai, pola SAMA PERSIS {@link #produkCacheSemua}/muatDaftarProduk di
+ * produk-renderer.js (gap-closure "layar Anggota selalu blank+spinner sampai server merespons").
+ * {@code aktif} SELALU {@code true} -- sinkron cache ({@code anggota_sync_list} server) hanya
+ * menarik anggota berstatus aktif, jadi TIDAK ADA kolom {@code aktif} di skema cache ini (BUKAN
+ * lupa, lihat CREATE TABLE anggota_cache) -- anggota non-aktif tak pernah masuk cache, cocok dgn
+ * default ini.
+ * @return {Array<object>} urut nama -- pemanggil yg menyaring/memparanmasi sendiri (cache ini murni
+ *         salinan PENUH, tidak ada konsep halaman/keyword di level SQLite).
+ */
+function anggotaCacheSemua() {
+    const baris = getDb().prepare(`SELECT * FROM anggota_cache ORDER BY nama ASC`).all();
+    return baris.map((a) => ({
+        id: a.id,
+        nama: a.nama || '',
+        kode: a.kode || '',
+        kodeIdentitas: a.kode_identitas || '',
+        hp: a.hp || '',
+        telp: a.telp || '',
+        email: a.email || '',
+        keterangan: a.keterangan || '',
+        jenisAnggotaKoperasiId: a.jenis_anggota_koperasi_id,
+        jenisNama: a.jenis_nama || '',
+        wajibPin: !!a.wajib_pin,
+        aktif: true
+    }));
+}
+
+/**
  * Pencarian member di cache LOKAL (offline-first) -- dipakai picker member saat server /PosApi tak
  * terjangkau (lihat JavaDoc {@code cariMember} di main.js utk kapan fallback ini dipicu). TIDAK
  * memuat saldo (cache tak pernah menyimpan saldo -- itu data finansial yg WAJIB real-time, bukan
@@ -1002,6 +1032,7 @@ module.exports = {
     ringkasanProdukCache,
     upsertAnggotaCache,
     cariAnggotaCache,
+    anggotaCacheSemua,
     anggotaCacheById,
     anggotaCacheMaxId,
     hitungAnggotaCache,

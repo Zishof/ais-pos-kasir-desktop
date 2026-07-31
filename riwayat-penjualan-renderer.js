@@ -112,19 +112,38 @@
         });
     }
 
+    // Gap-closure "layar Riwayat Penjualan selalu blank+spinner" (deep-analysis performa RAM 8GB) --
+    // channel IPC SAMA dgn tab Order Laporan Transaksi (posAPI.laporanTransaksi.order), jadi cache
+    // yg dibaca di sini bisa jadi potret dari kunjungan layar LAIN itu -- tetap berguna sbg paint
+    // SEKETIKA, selalu diikuti panggilan live (TIDAK PERNAH digantikan).
+    let rpDimuatSekaliDariCache = false;
+    async function muatRpDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.laporanTransaksi.orderCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderTabelRp(rCache.data.data || []);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatRp() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !rpDimuatSekaliDariCache;
+        if (!rpDimuatSekaliDariCache) await muatRpDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.laporanTransaksi.order({
                 tglMulai: elRpTglMulai.value || '', tglSampai: elRpTglSampai.value || '',
                 cariPembeli: elRpCariPembeli.value.trim(), page: stateRp.page, pageSize: stateRp.pageSize
             });
-            if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelRp, 7, 'Gagal memuat data.'); return; }
+            if (!r.ok) {
+                if (perluOverlay) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelRp, 7, 'Gagal memuat data.'); }
+                else tampilkanToast('error', 'Gagal memperbarui Riwayat Penjualan dari server -- masih menampilkan data cache lokal terakhir.');
+                return;
+            }
+            rpDimuatSekaliDariCache = true;
             stateRp.total = r.data.total || 0;
             renderTabelRp(r.data.data || []);
             renderPaginasi(elPaginasiRp, stateRp, muatRp);
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat Riwayat Penjualan: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat Riwayat Penjualan: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }

@@ -130,8 +130,20 @@
         }
     }
 
+    // Gap-closure "layar Retur Penjualan selalu blank+spinner" (deep-analysis performa RAM 8GB) --
+    // pola sama pos:dashboard-umum: paint SEKETIKA dari potret sukses TERAKHIR, SELALU diikuti live.
+    let rvDimuatSekaliDariCache = false;
+    async function muatRiwayatDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.returPenjualan.listCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderTabelRiwayat(rCache.data.data || []);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatRiwayat() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !rvDimuatSekaliDariCache;
+        if (!rvDimuatSekaliDariCache) await muatRiwayatDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.returPenjualan.list({
                 // NB: aksi retur_penjualan_list pakai konvensi snake_case "page_size" (mengikuti
@@ -139,12 +151,17 @@
                 // KantinHelper.returPenjualanList/kulakanList vs PosApi.daftarOrderDenganSesi.
                 keyword: elRvKeyword.value.trim(), page: stateRv.page, page_size: stateRv.pageSize
             });
-            if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelRiwayat, 7, 'Gagal memuat data.'); return; }
+            if (!r.ok) {
+                if (perluOverlay) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelRiwayat, 7, 'Gagal memuat data.'); }
+                else tampilkanToast('error', 'Gagal memperbarui riwayat retur dari server -- masih menampilkan data cache lokal terakhir.');
+                return;
+            }
+            rvDimuatSekaliDariCache = true;
             stateRv.total = r.data.total || 0;
             renderTabelRiwayat(r.data.data || []);
             renderPaginasi(elPaginasiRv, stateRv, muatRiwayat);
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat riwayat retur: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat riwayat retur: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }

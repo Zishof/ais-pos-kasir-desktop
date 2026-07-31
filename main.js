@@ -44,6 +44,16 @@
  *     sekali. Lihat JavaDoc {@link #prosesLoginServer} untuk alasan lengkap pendekatan ini.
  */
 const { app, BrowserWindow, ipcMain, screen, Menu, dialog, session, safeStorage, shell } = require('electron');
+
+// Gap-closure "aplikasi terasa berat di mesin POS RAM 8GB" -- Chromium SELALU menyalakan proses GPU
+// terpisah (biasanya 50-100MB+ RAM & pemakaian CPU sendiri) walau aplikasi ini murni form/tabel data,
+// TIDAK ada animasi/render berat yang benar-benar butuh akselerasi hardware. Di mesin POS kelas bawah
+// (GPU terintegrasi lemah/driver usang -- umum di perangkat kasir), proses GPU itu kadang JUSTRU lebih
+// lambat drpd rendering software Chromium sendiri. HARUS dipanggil SEBELUM app.whenReady()/app siap --
+// pola standar Electron utk aplikasi kios/POS di perangkat lawas, lihat dokumentasi Electron
+// `app.disableHardwareAcceleration()`.
+app.disableHardwareAcceleration();
+
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -2491,6 +2501,19 @@ ipcMain.handle('pos:anggota-cache-cari', async (event, opsi) => {
         return { ok: false, pesan: String(e && e.message || e) };
     }
 });
+/**
+ * Gap-closure "layar Anggota selalu blank+spinner sampai server merespons" -- SELURUH cache lokal
+ * anggota (bukan LIKE-terbatas spt {@code pos:anggota-cache-cari}), dipakai anggota-renderer.js utk
+ * paint SEKETIKA (filter/halaman dilakukan di klien) sebelum panggilan live {@code anggota_list}
+ * selesai. Pola SAMA PERSIS {@code pos:produk-cache-semua} + produk-renderer.js.
+ */
+ipcMain.handle('pos:anggota-cache-semua', async () => {
+    try {
+        return { ok: true, data: localDb.anggotaCacheSemua() };
+    } catch (e) {
+        return { ok: false, pesan: 'Gagal membaca cache anggota lokal: ' + (e && e.message ? e.message : e) };
+    }
+});
 ipcMain.handle('pos:saldo-member', async (event, payload) => {
     const cfg = readConfig();
     if (!cfg) return { ok: false, pesan: 'Alamat server belum diatur.' };
@@ -2998,8 +3021,13 @@ ipcMain.handle('pos:diskon-list', async (event, payload) => {
     if (!cfg) return { ok: false, pesan: 'Alamat server belum diatur.' };
     const hasil = await panggilPosApi(cfg, 'diskon_list', payload || {});
     if (hasil.offline) return { ok: false, offline: true, pesan: 'Tidak ada koneksi -- daftar aturan diskon butuh data terkini.' };
+    // Gap-closure "layar Diskon selalu blank+spinner" (deep-analysis performa RAM 8GB) -- tulis-tembus
+    // ke cache_referensi murni utk paint SEKETIKA kunjungan BERIKUTNYA (lihat pos:diskon-list-cache-baca),
+    // perilaku "selalu live, tak ada fallback offline" TIDAK berubah.
+    if (hasil.ok) { try { localDb.simpanCache('diskon_list', hasil.data); } catch (eCache) { /* best-effort */ } }
     return hasil;
 });
+ipcMain.handle('pos:diskon-list-cache-baca', handlerCacheBaca('diskon_list'));
 ipcMain.handle('pos:diskon-simpan', async (event, payload) => {
     const cfg = readConfig();
     if (!cfg) return { ok: false, pesan: 'Alamat server belum diatur.' };
@@ -3935,7 +3963,58 @@ function handlerDashboard(action) {
         return { ok: false, pesan: hasil.pesan, butuhLoginUlang: hasil.butuhLoginUlang };
     };
 }
-ipcMain.handle('pos:dashboard-umum', handlerDashboard('dashboard_umum'));
+/**
+ * Gap-closure "layar Laporan Transaksi/Riwayat Penjualan/Kulakan/Diskon/Retur Penjualan/Stok Opname
+ * selalu blank+spinner menunggu server" (deep-analysis performa RAM 8GB, lanjutan dari
+ * pos:dashboard-umum) -- pola SAMA PERSIS: {@link #handlerDashboard} TETAP TIDAK berubah perilakunya
+ * (selalu live, TIDAK ADA fallback offline saat gagal -- layar-layar ini butuh data terkini utk
+ * operasional/keputusan, BUKAN sekadar tampilan), SATU-SATUNYA tambahan adalah menulis-tembus
+ * respons SUKSES ke {@code cache_referensi} supaya panggilan BERIKUTNYA (kunjungan layar
+ * selanjutnya) bisa paint SEKETIKA lewat {@link #handlerCacheBaca} sebelum live selesai.
+ * @param {string} kunciCache kunci {@code cache_referensi}, SATU per layar/tab (lihat pemanggil).
+ */
+function handlerDashboardDenganCache(action, kunciCache) {
+    const asli = handlerDashboard(action);
+    return async (event, payload) => {
+        const hasil = await asli(event, payload);
+        if (hasil.ok) { try { localDb.simpanCache(kunciCache, hasil.data); } catch (eCache) { /* cache murni best-effort */ } }
+        return hasil;
+    };
+}
+/** Baca-saja, murni SQLite lokal (TIDAK menyentuh server) -- pasangan {@link #handlerDashboardDenganCache}. */
+function handlerCacheBaca(kunciCache) {
+    return async () => {
+        try {
+            const cache = localDb.bacaCache(kunciCache);
+            return { ok: true, data: cache ? cache.data : null, disimpanPada: cache ? cache.disimpanPada : null };
+        } catch (e) {
+            return { ok: false, pesan: String(e && e.message || e) };
+        }
+    };
+}
+/**
+ * Gap-closure "layar Ringkasan (tab Umum, halaman PERTAMA yg dilihat kasir/supervisor) selalu
+ * blank+spinner menunggu server" (deep-analysis performa RAM 8GB) -- TETAP selalu memanggil server
+ * scr live spt sebelumnya (kontrak "data analitik WAJIB terkini, TIDAK ADA fallback offline" di
+ * JavaDoc handlerDashboard TIDAK berubah -- kalau gagal/offline, tetap error apa adanya, TIDAK diam-
+ * diam menyajikan cache basi sbg pengganti). SATU-SATUNYA tambahan: respons SUKSES ditulis-tembus ke
+ * cache_referensi (murni utk PAINT SEKETIKA di renderer sebelum panggilan live BERIKUTNYA selesai --
+ * lihat pos:dashboard-umum-cache-baca & JavaDoc ringkasan-renderer.js muatTabUmumDariCache).
+ */
+ipcMain.handle('pos:dashboard-umum', async (event, payload) => {
+    const hasil = await handlerDashboard('dashboard_umum')(event, payload);
+    if (hasil.ok) { try { localDb.simpanCache('dashboard_umum', hasil.data); } catch (eCache) { /* cache murni best-effort */ } }
+    return hasil;
+});
+/** Baca-saja, murni SQLite lokal (TIDAK menyentuh server) -- lihat JavaDoc pos:dashboard-umum. */
+ipcMain.handle('pos:dashboard-umum-cache-baca', async () => {
+    try {
+        const cache = localDb.bacaCache('dashboard_umum');
+        return { ok: true, data: cache ? cache.data : null, disimpanPada: cache ? cache.disimpanPada : null };
+    } catch (e) {
+        return { ok: false, pesan: String(e && e.message || e) };
+    }
+});
 ipcMain.handle('pos:dashboard-keuangan', handlerDashboard('dashboard_keuangan'));
 ipcMain.handle('pos:dashboard-produk', handlerDashboard('dashboard_produk'));
 ipcMain.handle('pos:dashboard-pelanggan', handlerDashboard('dashboard_pelanggan'));
@@ -3953,9 +4032,12 @@ ipcMain.handle('pos:layani-semua-transaksi', handlerDashboard('layani_semua_tran
  * JavaDoc lengkap {@code PosApi.daftarOrderDenganSesi}/{@code prosesLaporanSesiList} server. SAMA
  * pola dgn dasbor lain di atas (WAJIB data terkini, tidak ada cache offline).
  */
-ipcMain.handle('pos:laporan-order-list', handlerDashboard('laporan_order_list'));
-ipcMain.handle('pos:laporan-sesi-list', handlerDashboard('laporan_sesi_list'));
-ipcMain.handle('pos:laporan-payment-list', handlerDashboard('laporan_payment_list'));
+ipcMain.handle('pos:laporan-order-list', handlerDashboardDenganCache('laporan_order_list', 'laporan_order_list'));
+ipcMain.handle('pos:laporan-order-list-cache-baca', handlerCacheBaca('laporan_order_list'));
+ipcMain.handle('pos:laporan-sesi-list', handlerDashboardDenganCache('laporan_sesi_list', 'laporan_sesi_list'));
+ipcMain.handle('pos:laporan-sesi-list-cache-baca', handlerCacheBaca('laporan_sesi_list'));
+ipcMain.handle('pos:laporan-payment-list', handlerDashboardDenganCache('laporan_payment_list', 'laporan_payment_list'));
+ipcMain.handle('pos:laporan-payment-list-cache-baca', handlerCacheBaca('laporan_payment_list'));
 
 /**
  * Dasbor statistik Laporan Transaksi (gap-closure paritas Produk/Anggota) -- BEDA dari
@@ -4000,7 +4082,8 @@ ipcMain.handle('pos:stokopname-ringkasan', handlerDashboard('so_ringkasan'));
  */
 ipcMain.handle('pos:stokopname-riwayat', handlerDashboard('so_riwayat'));
 /** Dashboard "Mutasi Barang" (gap-closure, padanan JSP stok/mutasi_stok.jsp) -- lihat JavaDoc server {@code KantinHelper.stokDashboard}. WAJIB data terkini (sama pola dgn dasbor lain di atas), tidak ada cache offline. */
-ipcMain.handle('pos:stokopname-dashboard', handlerDashboard('stok_dashboard'));
+ipcMain.handle('pos:stokopname-dashboard', handlerDashboardDenganCache('stok_dashboard', 'stok_dashboard'));
+ipcMain.handle('pos:stokopname-dashboard-cache-baca', handlerCacheBaca('stok_dashboard'));
 
 /**
  * Layar "Kulakan" (Harga Beli / Pengadaan Produk, Desktop) -- proksi tipis ke {@code kulakan_list}/
@@ -4011,9 +4094,11 @@ ipcMain.handle('pos:stokopname-dashboard', handlerDashboard('stok_dashboard'));
  * sama. {@code kulakan_simpan} DIGERBANG supervisor-only di server; {@code kulakan_list} boleh dibaca
  * siapa saja yg login.
  */
-ipcMain.handle('pos:kulakan-list', handlerDashboard('kulakan_list'));
+ipcMain.handle('pos:kulakan-list', handlerDashboardDenganCache('kulakan_list', 'kulakan_list'));
+ipcMain.handle('pos:kulakan-list-cache-baca', handlerCacheBaca('kulakan_list'));
 ipcMain.handle('pos:kulakan-simpan', handlerDashboard('kulakan_simpan'));
-ipcMain.handle('pos:retur-penjualan-list', handlerDashboard('retur_penjualan_list'));
+ipcMain.handle('pos:retur-penjualan-list', handlerDashboardDenganCache('retur_penjualan_list', 'retur_penjualan_list'));
+ipcMain.handle('pos:retur-penjualan-list-cache-baca', handlerCacheBaca('retur_penjualan_list'));
 ipcMain.handle('pos:retur-penjualan-simpan', handlerDashboard('retur_penjualan_simpan'));
 ipcMain.handle('pos:retur-penjualan-ubah', handlerDashboard('retur_penjualan_ubah'));
 ipcMain.handle('pos:retur-penjualan-hapus', handlerDashboard('retur_penjualan_hapus'));

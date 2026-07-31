@@ -156,20 +156,33 @@
         elBtnHalBerikutnyaDiskon.disabled = state.page >= totalHal;
     }
 
+    // Gap-closure "layar Aturan Diskon selalu blank+spinner" (deep-analysis performa RAM 8GB) -- pola
+    // sama pos:dashboard-umum: paint SEKETIKA dari potret sukses TERAKHIR, SELALU diikuti live.
+    let diskonDimuatSekaliDariCache = false;
+    async function muatDaftarDiskonDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.diskon.listCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderTabelDiskon(rCache.data.data || []);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatDaftarDiskon() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !diskonDimuatSekaliDariCache;
+        if (!diskonDimuatSekaliDariCache) await muatDaftarDiskonDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.diskon.list({ keyword: state.keyword, page: state.page, page_size: state.pageSize });
             if (!r.ok) {
-                window.PesanDetail.tampilkanDariHasil(r);
-                renderTabelDiskon([]);
+                if (perluOverlay) { window.PesanDetail.tampilkanDariHasil(r); renderTabelDiskon([]); }
+                else tampilkanToast('error', 'Gagal memperbarui aturan diskon dari server -- masih menampilkan data cache lokal terakhir.');
                 return;
             }
+            diskonDimuatSekaliDariCache = true;
             state.total = r.data.total || 0;
             renderTabelDiskon(r.data.data || []);
             renderPaginasiDiskon();
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat aturan diskon: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat aturan diskon: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }

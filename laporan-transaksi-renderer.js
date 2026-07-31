@@ -154,19 +154,38 @@
         });
     }
 
+    // Gap-closure "layar Laporan Transaksi selalu blank+spinner" (deep-analysis performa RAM 8GB) --
+    // pola sama pos:dashboard-umum: paint SEKETIKA dari potret sukses TERAKHIR (bisa dari filter/sesi
+    // sebelumnya), TETAP SELALU diikuti panggilan live (TIDAK PERNAH digantikan) -- kontrak "data
+    // WAJIB terkini" TIDAK berubah.
+    let orderDimuatSekaliDariCache = false;
+    async function muatOrderDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.laporanTransaksi.orderCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderTabelOrder(rCache.data.data || []);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatOrder() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !orderDimuatSekaliDariCache;
+        if (!orderDimuatSekaliDariCache) await muatOrderDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.laporanTransaksi.order({
                 tglMulai: elOrderTglMulai.value || '', tglSampai: elOrderTglSampai.value || '',
                 cariPembeli: elOrderCariPembeli.value.trim(), page: stateOrder.page, pageSize: stateOrder.pageSize
             });
-            if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelOrder, 9, 'Gagal memuat data.'); return; }
+            if (!r.ok) {
+                if (perluOverlay) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelOrder, 9, 'Gagal memuat data.'); }
+                else tampilkanToast('error', 'Gagal memperbarui Report Order dari server -- masih menampilkan data cache lokal terakhir.');
+                return;
+            }
+            orderDimuatSekaliDariCache = true;
             stateOrder.total = r.data.total || 0;
             renderTabelOrder(r.data.data || []);
             renderPaginasi(elPaginasiOrder, stateOrder, muatOrder);
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat Report Order: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat Report Order: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }
@@ -201,19 +220,34 @@
         elTabelSesi.innerHTML = html;
     }
 
+    let sesiDimuatSekaliDariCache = false;
+    async function muatSesiDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.laporanTransaksi.sesiCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderTabelSesi(rCache.data.data || []);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatSesi() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !sesiDimuatSekaliDariCache;
+        if (!sesiDimuatSekaliDariCache) await muatSesiDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.laporanTransaksi.sesi({
                 tglMulai: elSesiTglMulai.value || '', tglSampai: elSesiTglSampai.value || '',
                 page: stateSesi.page, pageSize: stateSesi.pageSize
             });
-            if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelSesi, 8, 'Gagal memuat data.'); return; }
+            if (!r.ok) {
+                if (perluOverlay) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelSesi, 8, 'Gagal memuat data.'); }
+                else tampilkanToast('error', 'Gagal memperbarui Report Sesi dari server -- masih menampilkan data cache lokal terakhir.');
+                return;
+            }
+            sesiDimuatSekaliDariCache = true;
             stateSesi.total = r.data.total || 0;
             renderTabelSesi(r.data.data || []);
             renderPaginasi(elPaginasiSesi, stateSesi, muatSesi);
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat Report Sesi: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat Report Sesi: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }
@@ -242,19 +276,34 @@
         elTabelPayment.innerHTML = html;
     }
 
+    let paymentDimuatSekaliDariCache = false;
+    async function muatPaymentDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.laporanTransaksi.paymentCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderTabelPayment(rCache.data.data || []);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatPayment() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !paymentDimuatSekaliDariCache;
+        if (!paymentDimuatSekaliDariCache) await muatPaymentDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.laporanTransaksi.payment({
                 tglMulai: elPaymentTglMulai.value || '', tglSampai: elPaymentTglSampai.value || '',
                 page: statePayment.page, pageSize: statePayment.pageSize
             });
-            if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelPayment, 5, 'Gagal memuat data.'); return; }
+            if (!r.ok) {
+                if (perluOverlay) { window.PesanDetail.tampilkanDariHasil(r); tabelKosong(elTabelPayment, 5, 'Gagal memuat data.'); }
+                else tampilkanToast('error', 'Gagal memperbarui Report Payment dari server -- masih menampilkan data cache lokal terakhir.');
+                return;
+            }
+            paymentDimuatSekaliDariCache = true;
             statePayment.total = r.data.total || 0;
             renderTabelPayment(r.data.data || []);
             renderPaginasi(elPaginasiPayment, statePayment, muatPayment);
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat Report Payment: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat Report Payment: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }

@@ -196,20 +196,33 @@
         elBtnHalBerikutnyaKulakan.disabled = state.page >= totalHal;
     }
 
+    // Gap-closure "layar Kulakan selalu blank+spinner" (deep-analysis performa RAM 8GB) -- pola sama
+    // pos:dashboard-umum: paint SEKETIKA dari potret sukses TERAKHIR, SELALU diikuti panggilan live.
+    let kulakanDimuatSekaliDariCache = false;
+    async function muatDaftarKulakanDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.kulakan.listCacheBaca();
+            if (!rCache.ok || !rCache.data) return;
+            renderTabelKulakan(rCache.data.data || []);
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa */ }
+    }
     async function muatDaftarKulakan() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !kulakanDimuatSekaliDariCache;
+        if (!kulakanDimuatSekaliDariCache) await muatDaftarKulakanDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.kulakan.list({ keyword: state.keyword, page: state.page, page_size: state.pageSize });
             if (!r.ok) {
-                window.PesanDetail.tampilkanDariHasil(r);
-                renderTabelKulakan([]);
+                if (perluOverlay) { window.PesanDetail.tampilkanDariHasil(r); renderTabelKulakan([]); }
+                else tampilkanToast('error', 'Gagal memperbarui riwayat Kulakan dari server -- masih menampilkan data cache lokal terakhir.');
                 return;
             }
+            kulakanDimuatSekaliDariCache = true;
             state.total = r.data.total || 0;
             renderTabelKulakan(r.data.data || []);
             renderPaginasiKulakan();
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat riwayat Kulakan: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat riwayat Kulakan: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }

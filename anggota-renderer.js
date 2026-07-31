@@ -236,20 +236,54 @@
         elBtnHalBerikutnyaAnggota.disabled = state.page >= totalHal;
     }
 
+    // Gap-closure "layar Anggota selalu blank+spinner sampai server merespons" (deep-analysis performa
+    // RAM 8GB): cache lokal anggota_cache SUDAH ADA+terisi (dipakai picker member offline di Kasir)
+    // tapi TIDAK PERNAH dipakai memberi paint SEKETIKA di layar ini -- pola sama produk-renderer.js
+    // muatDaftarProduk/katalogDimuatSekaliDariCache. HANYA sekali per sesi (muat pertama kali layar
+    // dibuka) -- navigasi halaman/pencarian SETELAH itu langsung ke live spt semula (cache adalah
+    // salinan PENUH tanpa dukungan halaman-server, tak cocok dipakai berulang utk query spesifik).
+    let anggotaDimuatSekaliDariCache = false;
+
+    async function muatDaftarAnggotaDariCache() {
+        try {
+            const rCache = await window.electronAPI.posAPI.anggota.cacheSemua();
+            if (!rCache.ok || !rCache.data || !rCache.data.length) return;
+            const kw = state.keyword.trim().toUpperCase();
+            let hasil = rCache.data;
+            if (kw) {
+                hasil = hasil.filter((a) =>
+                    (a.nama || '').toUpperCase().includes(kw)
+                    || (a.kode || '').toUpperCase().includes(kw)
+                    || (a.kodeIdentitas || '').toUpperCase().includes(kw));
+            }
+            state.total = hasil.length;
+            const mulai = (state.page - 1) * state.pageSize;
+            renderTabelAnggota(hasil.slice(mulai, mulai + state.pageSize));
+            renderPaginasiAnggota();
+        } catch (eCache) { /* cache belum ada/rusak -- lanjut ke live spt biasa, overlay tetap tampil */ }
+    }
+
     async function muatDaftarAnggota() {
-        elLayarMuat.className = 'layar-penuh';
+        const perluOverlay = !anggotaDimuatSekaliDariCache;
+        if (!anggotaDimuatSekaliDariCache) await muatDaftarAnggotaDariCache();
+        if (perluOverlay) elLayarMuat.className = 'layar-penuh';
         try {
             const r = await window.electronAPI.posAPI.anggota.list({ keyword: state.keyword, page: state.page, page_size: state.pageSize });
             if (!r.ok) {
-                window.PesanDetail.tampilkanDariHasil(r);
-                renderTabelAnggota([]);
+                if (perluOverlay) {
+                    window.PesanDetail.tampilkanDariHasil(r);
+                    renderTabelAnggota([]);
+                } else {
+                    tampilkanToast('error', 'Gagal memperbarui daftar anggota dari server -- masih menampilkan data cache lokal terakhir.');
+                }
                 return;
             }
+            anggotaDimuatSekaliDariCache = true;
             state.total = r.data.total || 0;
             renderTabelAnggota(r.data.data || []);
             renderPaginasiAnggota();
         } catch (e) {
-            tampilkanToast('error', 'Gagal memuat daftar anggota: ' + (e && e.message ? e.message : e));
+            if (perluOverlay) tampilkanToast('error', 'Gagal memuat daftar anggota: ' + (e && e.message ? e.message : e));
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }
