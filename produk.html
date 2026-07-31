@@ -252,6 +252,7 @@
                     <input type="checkbox" id="chkHanyaAktifProduk" checked> Hanya Aktif
                 </label>
                 <button class="btn-sync" id="btnHapusNonaktifTakTerpakai" style="display:none;color:var(--danger);border-color:var(--danger-50, var(--border));" title="Hapus PERMANEN produk Non-Aktif yang TIDAK PERNAH dipakai di transaksi/pengadaan/stok opname/resep apa pun. Produk Non-Aktif yang pernah dipakai TIDAK akan ikut terhapus.">&#128465;&#65039; <span data-i18n="Hapus Non-Aktif Tak Terpakai">Hapus Non-Aktif Tak Terpakai</span></button>
+                <button class="btn-sync" id="btnHapusTakAdaTransaksi" style="display:none;color:var(--danger);border-color:var(--danger-50, var(--border));" title="Hapus PERMANEN produk (aktif maupun non-aktif) di toko ini yang BELUM PERNAH ditransaksikan (jual/beli) -- stok opname produk yang ikut terhapus juga ikut dihapus. Gunakan utk membersihkan data kotor sebelum unggah ulang katalog Excel baru.">&#128465;&#65039; <span data-i18n="Hapus Produk Tak Ada Transaksi">Hapus Produk Tak Ada Transaksi</span></button>
                 <button class="btn-sync" id="btnSinkronProdukCache" title="Sinkronkan salinan lokal katalog produk dengan server (dipakai saat offline)">&#128260; <span data-i18n="Sinkronkan">Sinkronkan</span></button>
                 <button class="btn-sync" id="btnHitungUlangStok" style="display:none;" title="Hitung ulang stok semua produk dari rekam jejak pengadaan/opname/penjualan -- pakai ini bila Stok terlihat tidak akurat">&#128260; <span data-i18n="Hitung Ulang Stok">Hitung Ulang Stok</span></button>
                 <button class="btn-sync" id="btnUnduhExcelProduk" style="display:none;">&#11015;&#65039; <span data-i18n="Unduh Excel">Unduh Excel</span></button>
@@ -293,6 +294,23 @@
                     </div>
                 </div>
                 <div id="isiHalaman"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlayFormatImporEkspor">
+        <div class="modal-metode" style="width:440px;max-width:92vw;">
+            <div class="kepala">
+                <h3 id="judulFormatImporEkspor">Pilih Format Excel</h3>
+                <button type="button" class="tutup" id="btnTutupFormatImporEkspor">&#10005;</button>
+            </div>
+            <div style="padding:4px 20px 0;">
+                <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;">Pilih format berkas Excel yang dipakai. Format baru dapat diaktifkan/dinonaktifkan di menu Konfigurasi.</p>
+                <div id="daftarFormatImporEkspor"></div>
+            </div>
+            <div style="padding:14px 20px 20px;display:flex;gap:10px;justify-content:flex-end;">
+                <button type="button" class="btn-kecil" id="btnBatalFormatImporEkspor">Batal</button>
+                <button type="button" class="btn-sesikas-aksi" id="btnLanjutFormatImporEkspor" style="width:auto;padding:10px 20px;">Lanjutkan</button>
             </div>
         </div>
     </div>

@@ -47,8 +47,41 @@
                 supervisorPedagang = !!cfg.data.supervisorPedagang;
                 aksesMenuCrud = cfg.data.aksesMenuCrud || {};
                 terapkanGerbangAkses();
+                renderFormatImporEkspor(cfg.data.formatImporEkspor || []);
             }
         } catch (e) { /* abaikan */ }
+    }
+
+    // ==== Seksi "Format Unggah/Unduh Excel" (lokal, gap-closure -- lihat JavaDoc PosApi.prosesKonfigurasi
+    // soal kenapa daftar format bersumber dari server walau enable/disable-nya murni lokal) ====
+
+    const KUNCI_FORMAT_NONAKTIF = 'pos_format_import_ekspor_nonaktif';
+    function formatDinonaktifkanLokal() {
+        try { return JSON.parse(localStorage.getItem(KUNCI_FORMAT_NONAKTIF) || '[]'); } catch (e) { return []; }
+    }
+    function simpanFormatDinonaktifkanLokal(daftarId) {
+        try { localStorage.setItem(KUNCI_FORMAT_NONAKTIF, JSON.stringify(daftarId)); } catch (e) { /* abaikan */ }
+    }
+    function renderFormatImporEkspor(daftarFormat) {
+        const el = document.getElementById('daftarFormatImporEksporKonfig');
+        if (!el) return;
+        if (daftarFormat.length === 0) { el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0;">Belum ada format terdaftar di server.</p>'; return; }
+        const nonaktif = formatDinonaktifkanLokal();
+        el.innerHTML = daftarFormat.map((f) => (
+            '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;">'
+            + '<input type="checkbox" data-format-id="' + escapeHtmlLokal(f.id) + '"' + (nonaktif.indexOf(f.id) === -1 ? ' checked' : '') + '>'
+            + '<span style="font-weight:700;">' + escapeHtmlLokal(f.nama || f.id) + '</span>'
+            + '</label>'
+        )).join('');
+        el.querySelectorAll('input[data-format-id]').forEach((chk) => {
+            chk.addEventListener('change', () => {
+                const id = chk.getAttribute('data-format-id');
+                let daftar = formatDinonaktifkanLokal();
+                daftar = daftar.filter((x) => x !== id);
+                if (!chk.checked) daftar.push(id);
+                simpanFormatDinonaktifkanLokal(daftar);
+            });
+        });
     }
 
     const bolehAksiMenu = (kunci, aksi) => {

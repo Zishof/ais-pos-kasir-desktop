@@ -3093,6 +3093,20 @@ ipcMain.handle('pos:produk-hapus-nonaktif-tak-terpakai', async (event, payload) 
 });
 
 /**
+ * Fitur "Hapus Produk Tak Ada Transaksi" (layar Katalog Barang, khusus supervisor/admin) --
+ * meneruskan ke {@code PosApi.produk_hapus_tak_ada_transaksi} (lihat JavaDoc server
+ * {@code KantinHelper.produkHapusTakAdaTransaksi}). Aksi PERMANEN -- konfirmasi ditampilkan di
+ * renderer SEBELUM handler ini dipanggil.
+ */
+ipcMain.handle('pos:produk-hapus-tak-ada-transaksi', async (event, payload) => {
+    const cfg = readConfig();
+    if (!cfg) return { ok: false, pesan: 'Alamat server belum diatur.' };
+    const hasil = await panggilPosApi(cfg, 'produk_hapus_tak_ada_transaksi', payload || {}, 120000);
+    if (hasil.offline) return { ok: false, offline: true, pesan: 'Tidak ada koneksi (atau server terlalu lama merespons) -- perlu koneksi aktif.' };
+    return hasil;
+});
+
+/**
  * Fitur "Unduh Excel" (layar Produk, khusus supervisor) -- meneruskan ke {@code
  * PosApi.produk_ekspor_excel} (server, lihat JavaDoc {@code KantinHelper.produkEksporExcel}).
  * HANYA mengambil {@code fileBase64} dari server -- MENULISNYA ke disk dilakukan terpisah lewat

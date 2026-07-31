@@ -37,6 +37,7 @@
     const elChkSemuaTokoProduk = document.getElementById('chkSemuaTokoProduk');
     const elChkHanyaAktifProduk = document.getElementById('chkHanyaAktifProduk');
     const elBtnHapusNonaktifTakTerpakai = document.getElementById('btnHapusNonaktifTakTerpakai');
+    const elBtnHapusTakAdaTransaksi = document.getElementById('btnHapusTakAdaTransaksi');
     const elPanelBersihkanDuplikat = document.getElementById('panelBersihkanDuplikat');
     const elOverlayDuplikatProduk = document.getElementById('overlayDuplikatProduk');
     const elJudulDuplikatProduk = document.getElementById('judulDuplikatProduk');
@@ -262,6 +263,7 @@
     let supervisorPedagang = false;
     let aksesMenuCrud = {};
     let tokoNamaSaatIni = '';
+    let daftarFormatImporEkspor = [];
     const bolehAksiMenu = (kunci, aksi) => {
         if (isAdminAkun || supervisorPedagang) return true;
         const crud = aksesMenuCrud && aksesMenuCrud[kunci];
@@ -293,12 +295,14 @@
                 isAdminAkun = !!cfg.data.isAdmin;
                 supervisorPedagang = !!cfg.data.supervisorPedagang;
                 aksesMenuCrud = cfg.data.aksesMenuCrud || {};
+                daftarFormatImporEkspor = cfg.data.formatImporEkspor || [];
                 const kelolaSekarang = bolehKelolaProduk();
                 elBtnTambahProduk.style.display = kelolaSekarang ? 'inline-flex' : 'none';
                 elBtnHitungUlangStok.style.display = kelolaSekarang ? 'inline-flex' : 'none';
                 elBtnUnduhExcelProduk.style.display = kelolaSekarang ? 'inline-flex' : 'none';
                 elBtnUnggahExcelProduk.style.display = kelolaSekarang ? 'inline-flex' : 'none';
                 if (elBtnHapusNonaktifTakTerpakai) elBtnHapusNonaktifTakTerpakai.style.display = kelolaSekarang ? 'inline-flex' : 'none';
+                if (elBtnHapusTakAdaTransaksi) elBtnHapusTakAdaTransaksi.style.display = kelolaSekarang ? 'inline-flex' : 'none';
                 if (elPanelBersihkanDuplikat) elPanelBersihkanDuplikat.style.display = kelolaSekarang ? 'block' : 'none';
                 if (kelolaSekarang !== kelolaProdukSebelumnya) {
                     kelolaProdukSebelumnya = kelolaSekarang;
@@ -777,6 +781,38 @@
         });
     }
 
+    // ==== Hapus Produk Tak Ada Transaksi (gap-closure, supervisor/admin saja -- gerbang server juga) ====
+
+    if (elBtnHapusTakAdaTransaksi) {
+        elBtnHapusTakAdaTransaksi.addEventListener('click', async () => {
+            if (!bolehKelolaProduk()) return;
+            if (!confirm(
+                'Hapus PERMANEN seluruh produk toko ini (aktif maupun non-aktif) yang BELUM PERNAH ditransaksikan (jual/beli)?\n\n'
+                + 'Riwayat stok opname produk yang ikut terhapus akan IKUT DIHAPUS. Produk yang pernah dipakai di transaksi, pengadaan, atau resep bahan baku TIDAK akan ikut terhapus -- akan dipertahankan otomatis & dilaporkan terpisah.\n\n'
+                + 'Gunakan ini utk membersihkan data kotor sebelum mengunggah ulang katalog Excel baru. Tindakan ini TIDAK BISA dibatalkan.'
+            )) return;
+            elBtnHapusTakAdaTransaksi.disabled = true;
+            const labelAsli = elBtnHapusTakAdaTransaksi.innerHTML;
+            elBtnHapusTakAdaTransaksi.textContent = 'Menghapus...';
+            try {
+                const r = await window.electronAPI.posAPI.produk.hapusTakAdaTransaksi();
+                if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); return; }
+                const d = r.data || {};
+                tampilkanToast('success',
+                    (d.dihapus || 0) + ' produk tak bertransaksi dihapus permanen'
+                    + (d.stokOpnameDihapus ? ' (' + d.stokOpnameDihapus + ' baris stok opname ikut dihapus)' : '')
+                    + (d.dipertahankan ? ', ' + d.dipertahankan + ' dipertahankan (masih ada riwayat pemakaian)' : '.'));
+                muatDaftarProduk(elCariProduk.value.trim());
+                muatStatistikProduk();
+            } catch (e) {
+                tampilkanToast('error', 'Gagal menghapus produk tak bertransaksi: ' + (e && e.message ? e.message : e));
+            } finally {
+                elBtnHapusTakAdaTransaksi.disabled = false;
+                elBtnHapusTakAdaTransaksi.innerHTML = labelAsli;
+            }
+        });
+    }
+
     // ==== Cetak PDF (katalog barang detail, termasuk Satuan/UOM) ====
 
     elBtnCetakPdfProduk.addEventListener('click', () => {
@@ -819,15 +855,74 @@
         setTimeout(() => { try { w.print(); } catch (e) { /* jendela mungkin sudah ditutup pengguna -- abaikan */ } }, 600);
     });
 
+    // ==== Format Unggah/Unduh Excel (gap-closure -- file yg toko unggah biasanya HASIL EKSPOR Accurate;
+    // permintaan user: konfirmasi format dulu sebelum Unduh/Unggah walau baru satu format tersedia) ====
+
+    const KUNCI_FORMAT_NONAKTIF = 'pos_format_import_ekspor_nonaktif';
+    function formatDinonaktifkanLokal() {
+        try { return JSON.parse(localStorage.getItem(KUNCI_FORMAT_NONAKTIF) || '[]'); } catch (e) { return []; }
+    }
+    function daftarFormatAktifUntukPicker() {
+        const nonaktif = formatDinonaktifkanLokal();
+        const aktifSaja = daftarFormatImporEkspor.filter((f) => f.aktif !== false && nonaktif.indexOf(f.id) === -1);
+        // Safety net: kalau SEMUA format kebetulan nonaktif (mis. hanya 1 format & disembunyikan sendiri
+        // di Konfigurasi), tetap tampilkan semuanya -- jangan sampai fitur Unduh/Unggah jadi buntu total.
+        return aktifSaja.length > 0 ? aktifSaja : daftarFormatImporEkspor;
+    }
+
+    const elOverlayFormatImporEkspor = document.getElementById('overlayFormatImporEkspor');
+    const elJudulFormatImporEkspor = document.getElementById('judulFormatImporEkspor');
+    const elDaftarFormatImporEkspor = document.getElementById('daftarFormatImporEkspor');
+    const elBtnTutupFormatImporEkspor = document.getElementById('btnTutupFormatImporEkspor');
+    const elBtnBatalFormatImporEkspor = document.getElementById('btnBatalFormatImporEkspor');
+    const elBtnLanjutFormatImporEkspor = document.getElementById('btnLanjutFormatImporEkspor');
+
+    function pilihFormatImporEksporModal(judul) {
+        return new Promise((resolve) => {
+            const daftar = daftarFormatAktifUntukPicker();
+            if (daftar.length === 0) { resolve('accurate'); return; }
+            elJudulFormatImporEkspor.textContent = judul;
+            elDaftarFormatImporEkspor.innerHTML = daftar.map((f, i) => (
+                '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;">'
+                + '<input type="radio" name="pilihanFormatImporEkspor" value="' + escapeHtmlLokal(f.id) + '"' + (i === 0 ? ' checked' : '') + '>'
+                + '<span style="font-weight:700;">' + escapeHtmlLokal(f.nama || f.id) + '</span>'
+                + '</label>'
+            )).join('');
+            elOverlayFormatImporEkspor.className = 'overlay tampil';
+
+            let selesai = false;
+            const bersihkan = () => {
+                elOverlayFormatImporEkspor.className = 'overlay';
+                elBtnTutupFormatImporEkspor.removeEventListener('click', batal);
+                elBtnBatalFormatImporEkspor.removeEventListener('click', batal);
+                elBtnLanjutFormatImporEkspor.removeEventListener('click', lanjut);
+                elOverlayFormatImporEkspor.removeEventListener('click', klikLuar);
+            };
+            const batal = () => { if (selesai) return; selesai = true; bersihkan(); resolve(null); };
+            const lanjut = () => {
+                if (selesai) return;
+                const dipilih = elDaftarFormatImporEkspor.querySelector('input[name="pilihanFormatImporEkspor"]:checked');
+                selesai = true; bersihkan(); resolve(dipilih ? dipilih.value : daftar[0].id);
+            };
+            const klikLuar = (e) => { if (e.target === elOverlayFormatImporEkspor) batal(); };
+            elBtnTutupFormatImporEkspor.addEventListener('click', batal);
+            elBtnBatalFormatImporEkspor.addEventListener('click', batal);
+            elBtnLanjutFormatImporEkspor.addEventListener('click', lanjut);
+            elOverlayFormatImporEkspor.addEventListener('click', klikLuar);
+        });
+    }
+
     // ==== Unduh/Unggah Excel (fitur "download/upload katalog", khusus supervisor) ====
 
     elBtnUnduhExcelProduk.addEventListener('click', async () => {
         if (!bolehKelolaProduk()) return;
+        const formatDipilih = await pilihFormatImporEksporModal('Unduh Excel -- Pilih Format');
+        if (!formatDipilih) return;
         elBtnUnduhExcelProduk.disabled = true;
         elBtnUnduhExcelProduk.textContent = 'Menyiapkan...';
         try {
             const hanyaAktif = !!(elChkHanyaAktifProduk && elChkHanyaAktifProduk.checked);
-            const r = await window.electronAPI.posAPI.produk.eksporExcel({ hanya_aktif: hanyaAktif });
+            const r = await window.electronAPI.posAPI.produk.eksporExcel({ hanya_aktif: hanyaAktif, format: formatDipilih });
             if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); return; }
             const simpan = await window.electronAPI.posAPI.produk.simpanExcel({
                 fileBase64: r.data.fileBase64,
@@ -846,6 +941,8 @@
 
     elBtnUnggahExcelProduk.addEventListener('click', async () => {
         if (!bolehKelolaProduk()) return;
+        const formatDipilih = await pilihFormatImporEksporModal('Unggah Excel -- Pilih Format');
+        if (!formatDipilih) return;
         const dipilih = await window.electronAPI.posAPI.produk.pilihExcel();
         if (dipilih.dibatalkan) return;
         if (!dipilih.ok) { tampilkanToast('error', dipilih.pesan || 'Gagal membaca berkas.'); return; }
@@ -853,7 +950,7 @@
         elBtnUnggahExcelProduk.disabled = true;
         elBtnUnggahExcelProduk.textContent = 'Membaca...';
         try {
-            const r = await window.electronAPI.posAPI.produk.pratinjauExcel({ file_base64: dipilih.base64 });
+            const r = await window.electronAPI.posAPI.produk.pratinjauExcel({ file_base64: dipilih.base64, format: formatDipilih });
             if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); return; }
             bukaReviewImpor(r.data);
         } catch (e) {

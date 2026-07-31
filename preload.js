@@ -449,6 +449,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
             duplikatHapus: (payload) => ipcRenderer.invoke('pos:produk-duplikat-hapus', payload),
             /** Fitur "Hapus Non-Aktif Tak Terpakai" -- gerbang supervisor/admin DITEGAKKAN server-side. Aksi PERMANEN, hanya menghapus produk Non-Aktif yang tak pernah dipakai di transaksi/resep apa pun. @return {Promise<{ok:boolean, data?:{dihapus:number,dipertahankan:number}, pesan?:string}>} */
             hapusNonaktifTakTerpakai: () => ipcRenderer.invoke('pos:produk-hapus-nonaktif-tak-terpakai', {}),
+            /** Fitur "Hapus Produk Tak Ada Transaksi" -- gerbang supervisor/admin DITEGAKKAN server-side. Aksi PERMANEN, mencakup SEMUA produk (aktif/non-aktif) toko ini yang belum pernah ditransaksikan; stok_opname produk yang ikut terhapus juga dihapus (cascade). @return {Promise<{ok:boolean, data?:{dihapus:number,dipertahankan:number,stokOpnameDihapus:number}, pesan?:string}>} */
+            hapusTakAdaTransaksi: () => ipcRenderer.invoke('pos:produk-hapus-tak-ada-transaksi', {}),
             /** Progress bar "Simpan" (gap-closure) -- dipanggil proses utama tiap satu batch baris selesai dikirim ke server (lihat JavaDoc pos:produk-komit-excel di main.js). @param {(payload:{diproses:number, total:number})=>void} callback */
             onImportProgress: (callback) => ipcRenderer.on('pos:import-katalog-progress', (event, payload) => callback(payload))
         },
