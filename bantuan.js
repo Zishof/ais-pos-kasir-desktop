@@ -39,6 +39,20 @@
 				'Kalau laci kasir tidak terbuka otomatis setelah bayar tunai, coba tombol kunci kecil di sebelah "Buka Laci" (beberapa printer pakai kabel pin berbeda).',
 				'Badge merah di tombol "Sinkronkan" menandakan ada transaksi yang belum terkirim ke server -- klik untuk mengirim ulang.',
 			],
+			pintasan: [
+				{ tombol: 'F1', keterangan: 'Buka Bantuan (layar ini).' },
+				{ tombol: 'F2', keterangan: 'Bayar -- selesaikan transaksi dengan keranjang saat ini.' },
+				{ tombol: 'F3', keterangan: 'Tahan Keranjang -- simpan tanpa membayar, lanjutkan nanti dari menu Pesanan.' },
+				{ tombol: 'F4', keterangan: 'Pilih Metode Pembayaran.' },
+				{ tombol: 'F5', keterangan: 'Pilih Member.' },
+				{ tombol: 'F6', keterangan: 'Buka Laci kasir.' },
+				{ tombol: 'F7', keterangan: 'Ganti tampilan Full Layar / Tampilan Normal.' },
+				{ tombol: 'F8', keterangan: 'Sinkronkan sekarang.' },
+				{ tombol: 'F9', keterangan: 'Buka/tutup Layar Pelanggan (monitor kedua).' },
+				{ tombol: 'Ctrl+1..9, Ctrl+0', keterangan: 'Pilih baris ke-1..9 atau ke-10 pada hasil pencarian produk, daftar Pilih Member, atau kartu Metode Pembayaran -- nomornya tertera di tiap baris/kartu.' },
+				{ tombol: 'Enter', keterangan: 'Saat mengetik/scan di kotak cari produk: tambahkan barang yang kodenya cocok persis ke keranjang. Di dalam popup lain: memicu tombol aksi utamanya.' },
+				{ tombol: 'Esc', keterangan: 'Menutup/membatalkan popup yang sedang terbuka.' },
+			],
 		},
 		ringkasan: {
 			judul: 'Ringkasan',
@@ -280,7 +294,7 @@
 	// MODAL (pola identik pesan-detail.js)
 	// ============================================================================
 	let sudahDisuntik = false;
-	let elOverlay, elModal, elIkon, elJudul, elRingkasan, elDiagram, elLangkah, elTips, elBlokTips;
+	let elOverlay, elModal, elIkon, elJudul, elRingkasan, elDiagram, elLangkah, elTips, elBlokTips, elPintasan, elBlokPintasan;
 
 	function suntikSekaliJalan() {
 		if (sudahDisuntik) return;
@@ -305,6 +319,11 @@
 			.bp-langkah-item span { font-size: 13px; line-height: 1.6; color: var(--muted, #64748b); }
 			.bp-tips { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: var(--ink, #1e293b); }
 			.bp-tips li { margin-bottom: 6px; }
+			.bp-pintasan-list { margin: 0; padding: 0; list-style: none; }
+			.bp-pintasan-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border, #e2e8f0); font-size: 13px; }
+			.bp-pintasan-item:last-child { border-bottom: none; }
+			.bp-kbd { flex-shrink: 0; min-width: 30px; text-align: center; padding: 3px 7px; border: 1px solid var(--border, #cbd5e1); border-radius: 6px; background: var(--bg, #f8fafc); font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; font-weight: 800; color: var(--ink, #1e293b); }
+			.bp-pintasan-item span { color: var(--muted, #64748b); line-height: 1.5; }
 			.bp-footer { padding: 14px 22px 22px; }
 			.bp-btn-ok { width: 100%; padding: 12px; border: none; border-radius: 11px; font-size: 13.5px; font-weight: 800; cursor: pointer; color: #fff; background: var(--primary, #2563eb); }
 		`;
@@ -318,6 +337,7 @@
 			'  <div class="bp-body">' +
 			'    <div class="bp-blok bp-blok-diagram"><h4>Alur Kerja Singkat</h4><div class="bp-diagram"></div></div>' +
 			'    <div class="bp-blok bp-blok-langkah"><h4>Langkah Lebih Rinci</h4><div class="bp-langkah-list"></div></div>' +
+			'    <div class="bp-blok bp-blok-pintasan"><h4>Pintasan Keyboard</h4><ul class="bp-pintasan-list"></ul></div>' +
 			'    <div class="bp-blok bp-blok-tips"><h4>Tips</h4><ul class="bp-tips"></ul></div>' +
 			'  </div>' +
 			'  <div class="bp-footer"><button type="button" class="bp-btn-ok">Mengerti</button></div>' +
@@ -330,6 +350,8 @@
 		elRingkasan = elOverlay.querySelector('.bp-sub');
 		elDiagram = elOverlay.querySelector('.bp-diagram');
 		elLangkah = elOverlay.querySelector('.bp-langkah-list');
+		elBlokPintasan = elOverlay.querySelector('.bp-blok-pintasan');
+		elPintasan = elBlokPintasan.querySelector('.bp-pintasan-list');
 		elBlokTips = elOverlay.querySelector('.bp-blok-tips');
 		elTips = elBlokTips.querySelector('.bp-tips');
 
@@ -367,6 +389,22 @@
 			div.appendChild(b);
 			div.appendChild(span);
 			elLangkah.appendChild(div);
+		});
+
+		elPintasan.innerHTML = '';
+		const pintasanArr = info.pintasan || [];
+		elBlokPintasan.style.display = pintasanArr.length ? '' : 'none';
+		pintasanArr.forEach((p) => {
+			const li = document.createElement('li');
+			li.className = 'bp-pintasan-item';
+			const kbd = document.createElement('span');
+			kbd.className = 'bp-kbd';
+			kbd.textContent = p.tombol;
+			const span = document.createElement('span');
+			span.textContent = p.keterangan;
+			li.appendChild(kbd);
+			li.appendChild(span);
+			elPintasan.appendChild(li);
 		});
 
 		elTips.innerHTML = '';
