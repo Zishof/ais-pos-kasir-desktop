@@ -3496,6 +3496,26 @@ ipcMain.handle('pos:produk-grid-ekspor-excel', async (event, payload) => {
  * @param {{html:string}} payload HTML struk lengkap (hasil {@code struk.js#bangunHtml}).
  * @return {Promise<{ok:boolean, pesan?:string}>}
  */
+
+/**
+ * Electron/Chromium punya perilaku dikenal: setelah {@code webContents.print()} (apalagi cetak diam ke
+ * printer thermal berkali-kali tiap transaksi), jendela pemanggil bisa kehilangan fokus keyboard di
+ * level OS Windows walau DOM-nya sendiri terlihat normal (elemen {@code :focus} tetap tampak ter-fokus)
+ * -- akibatnya field input di layar Kasir (termasuk kotak scan barcode, textarea alasan pembatalan, dst)
+ * terkesan "disabled" sampai kasir membuka aplikasi lain lalu kembali. Dipanggil di blok {@code finally}
+ * tiap handler cetak supaya jendela utama SELALU direbut kembali fokusnya di level OS (bukan cuma DOM
+ * {@code .focus()}) begitu proses cetak selesai -- berhasil ataupun gagal, dan tak peduli jendela cetak
+ * sudah/belum dihancurkan di titik lain.
+ */
+function pulihkanFokusJendelaUtama() {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.focus();
+    }
+}
+
 ipcMain.handle('pos:cetak-struk-diam', async (event, payload) => {
     const html = (payload && payload.html) || '';
     if (!html) return { ok: false, pesan: 'Tidak ada isi struk untuk dicetak.' };
@@ -3516,6 +3536,7 @@ ipcMain.handle('pos:cetak-struk-diam', async (event, payload) => {
         return { ok: false, pesan: 'Gagal menyiapkan cetak struk: ' + (e && e.message ? e.message : e) };
     } finally {
         if (winCetak && !winCetak.isDestroyed()) winCetak.destroy();
+        pulihkanFokusJendelaUtama();
     }
 });
 
@@ -3625,6 +3646,7 @@ ipcMain.handle('pos:cetak-struk-preview', async (event, payload) => {
         return { ok: false, pesan: 'Gagal menyiapkan pratinjau struk: ' + (e && e.message ? e.message : e) };
     } finally {
         if (winCetak && !winCetak.isDestroyed()) winCetak.destroy();
+        pulihkanFokusJendelaUtama();
     }
 });
 
@@ -3721,6 +3743,7 @@ ipcMain.handle('pos:cetak-pricetag-preview', async (event, payload) => {
         return { ok: false, pesan: 'Gagal menyiapkan pratinjau price tag: ' + (e && e.message ? e.message : e) };
     } finally {
         if (winCetak && !winCetak.isDestroyed()) winCetak.destroy();
+        pulihkanFokusJendelaUtama();
     }
 });
 
