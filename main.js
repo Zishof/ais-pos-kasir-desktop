@@ -50,6 +50,7 @@ const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 const localDb = require('./local-db.js');
+const { parseExcelProdukFormatAccurate } = require('./excel-produk-parser.js');
 const { autoUpdater } = require('electron-updater');
 const { execFile } = require('child_process');
 
@@ -3178,6 +3179,67 @@ ipcMain.handle('pos:produk-pratinjau-excel', async (event, payload) => {
     const hasil = await panggilPosApi(cfg, 'produk_impor_excel_preview', payload || {}, 120000);
     if (hasil.offline) return { ok: false, offline: true, pesan: 'Tidak ada koneksi -- katalog perlu diproses langsung oleh server.' };
     return hasil;
+});
+
+/**
+ * Fitur "Unggah Excel" langkah 1/2, versi LOKAL (gap-closure permintaan user: "file excel dibaca di
+ * local (android/desktop) saja, tidak perlu mengirimkan data ke server dulu, setelah proses simpan,
+ * baru dikirimkan ke server") -- menggantikan {@code pos:produk-pratinjau-excel} (yang memanggil
+ * server) sbg jalur UTAMA klien SEKARANG. Parsing 100% di proses utama lewat {@link
+ * excel-produk-parser.js} (port sinkron dari server {@code KantinHelper.deteksiKolomExcelProdukFormatAccurate}
+ * -- lihat JavaDoc di sana), TIDAK butuh koneksi internet sama sekali. {@code stokLama}/{@code
+ * produkId}/{@code baru} dicocokkan terhadap cache lokal {@link localDb.produkCacheSemua} (kode,
+ * case-insensitive) -- BUKAN query server, konsisten dgn layar Katalog Barang yang sudah cache-first.
+ * Daftar datalist kategori/pemasok/satuan dibangun dari NILAI YANG SUDAH ADA DI FILE itu sendiri
+ * (lebih relevan drpd daftar penuh dari DB) digabung kategori yang sudah dikenal di cache lokal.
+ *
+ * <p>Server ({@code produk_impor_excel_komit}, TIDAK berubah) baru disentuh saat user benar-benar
+ * klik "Simpan" di layar review -- satu-satunya tempat yang menulis database, jadi TETAP butuh
+ * koneksi saat itu. Perbaikan/perubahan cara BACA Excel di masa depan cukup ubah {@link
+ * excel-produk-parser.js} lalu rilis ulang klien -- TIDAK lagi tergantung kapan server produksi
+ * di-redeploy.</p>
+ */
+ipcMain.handle('pos:produk-pratinjau-excel-lokal', async (event, payload) => {
+    try {
+        const base64 = (payload && payload.file_base64) || '';
+        if (!base64.trim()) return { ok: false, pesan: 'File Excel tidak dikirim.' };
+        const buffer = Buffer.from(base64, 'base64');
+        const hasilParse = parseExcelProdukFormatAccurate(buffer);
+        if (!hasilParse.ok) return { ok: false, pesan: hasilParse.pesan };
+
+        let cache;
+        try { cache = localDb.produkCacheSemua(); } catch (e) { cache = { produk: [], kategori: [] }; }
+        const petaProduk = new Map();
+        (cache.produk || []).forEach((p) => { if (p.kode) petaProduk.set(String(p.kode).trim().toUpperCase(), p); });
+        const kategoriDariCache = (cache.kategori || []).map((k) => k.nama).filter(Boolean);
+
+        const baris = hasilParse.baris.map((b) => {
+            const existing = petaProduk.get(String(b.kode).trim().toUpperCase());
+            return {
+                no: b.no, kode: b.kode, barcode: b.barcode, nama: b.nama,
+                kategoriNama: b.kategoriNama, pemasokNama: b.pemasokNama, satuanNama: b.satuanNama,
+                stokBaru: b.stokBaru, hargaJual: b.hargaJual, hargaBeli: b.hargaBeli,
+                stokLama: existing ? (existing.stok || 0) : 0,
+                produkId: existing ? existing.id : null,
+                baru: !existing
+            };
+        });
+
+        const daftarKategori = Array.from(new Set([...hasilParse.kategoriDariFile, ...kategoriDariCache])).sort()
+            .map((nama) => ({ id: null, nama }));
+        const daftarPemasok = hasilParse.pemasokDariFile.map((nama) => ({ id: null, nama }));
+        const daftarSatuan = hasilParse.satuanDariFile.map((nama) => ({ id: null, nama }));
+
+        return {
+            ok: true,
+            data: {
+                baris, daftarKategori, daftarPemasok, daftarSatuan,
+                kolomTidakDitemukan: [] // fixed-position -- kalau header ketemu, SEMUA kolom otomatis ikut ketemu
+            }
+        };
+    } catch (e) {
+        return { ok: false, pesan: 'Gagal membaca berkas Excel: ' + (e && e.message ? e.message : e) };
+    }
 });
 
 /**

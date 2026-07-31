@@ -1,6 +1,6 @@
 {
   "name": "ais-pos-desktop",
-  "version": "1.0.68",
+  "version": "1.0.69",
   "description": "Aplikasi Desktop POS Kasir AIS (Enterprise Education) - shell Electron dual-layar (layar kasir + layar pelanggan), dengan wizard pengaturan alamat server (host/contextpath/HTTPS) saat pertama kali dijalankan.",
   "main": "main.js",
   "author": "Enterprise Education <noreply@ais-pos.local>",
@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "electron": "^31.3.1",
@@ -114,7 +115,12 @@
     },
     "linux": {
       "target": [
-        { "target": "deb", "arch": ["x64"] }
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "executableName": "ais-pos-kasir",
       "category": "Office",

@@ -950,7 +950,11 @@
         elBtnUnggahExcelProduk.disabled = true;
         elBtnUnggahExcelProduk.textContent = 'Membaca...';
         try {
-            const r = await window.electronAPI.posAPI.produk.pratinjauExcel({ file_base64: dipilih.base64, format: formatDipilih });
+            // Parsing 100% LOKAL utk format Accurate (gap-closure -- tak perlu koneksi, tak tergantung
+            // kapan server produksi di-redeploy, lihat JavaDoc pos:produk-pratinjau-excel-lokal di main.js).
+            const r = formatDipilih === 'accurate'
+                ? await window.electronAPI.posAPI.produk.pratinjauExcelLokal({ file_base64: dipilih.base64 })
+                : await window.electronAPI.posAPI.produk.pratinjauExcel({ file_base64: dipilih.base64, format: formatDipilih });
             if (!r.ok) { window.PesanDetail.tampilkanDariHasil(r); return; }
             bukaReviewImpor(r.data);
         } catch (e) {
