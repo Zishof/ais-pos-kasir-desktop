@@ -497,7 +497,7 @@
 
     // ==== Bersihkan Produk Duplikat (gap-closure, supervisor/admin saja -- gerbang server juga) ====
 
-    const NAMA_JENIS_DUPLIKAT = { kode: 'Kode', barcode: 'Barcode', nama: 'Nama Produk', kode_barcode: 'Kode + Barcode', kode_barcode_nama: 'Kode + Barcode + Nama' };
+    const NAMA_JENIS_DUPLIKAT = { kode: 'Kode', barcode: 'Barcode', nama: 'Nama Produk', kode_barcode: 'Kode + Barcode', kode_barcode_nama: 'Kode + Barcode + Nama', kunci_unik: 'Kunci Unik (Kode+Barcode+Nama, tanpa tanda baca/spasi)' };
     let jenisDuplikatAktif = null;
     let grupDuplikatAktif = [];
 
@@ -566,6 +566,7 @@
     document.getElementById('btnDuplikatNama').addEventListener('click', () => bukaModalDuplikat('nama'));
     document.getElementById('btnDuplikatKodeBarcode').addEventListener('click', () => bukaModalDuplikat('kode_barcode'));
     document.getElementById('btnDuplikatKodeBarcodeNama').addEventListener('click', () => bukaModalDuplikat('kode_barcode_nama'));
+    document.getElementById('btnDuplikatKunciUnik').addEventListener('click', () => bukaModalDuplikat('kunci_unik'));
 
     elBtnKonfirmasiDuplikatProduk.addEventListener('click', async () => {
         if (!jenisDuplikatAktif) return;
