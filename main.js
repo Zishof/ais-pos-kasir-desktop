@@ -2240,6 +2240,16 @@ ipcMain.handle('pos:konfigurasi', async () => {
     }
     return { ok: false, pesan: hasil.pesan, butuhLoginUlang: hasil.butuhLoginUlang };
 });
+/**
+ * Gap-closure "Kasir masih terjebak di layar muat saat server sedang restart": {@code pos:konfigurasi}
+ * di atas TETAP harus mencoba jaringan dulu (butuh percobaan gagal utk tahu "offline") sebelum jatuh ke
+ * cache -- selama server restart, percobaan itu bisa menggantung sampai batas waktu penuh, menahan
+ * layar Kasir di overlay "Memuat..." walau produk sebenarnya sudah tersedia dari {@code
+ * pos:produk-cache-kasir} (murni lokal, instan). Handler INI baca cache TERSIMPAN saja, TANPA mencoba
+ * jaringan sama sekali -- dipakai {@code muatKatalogDanKonfigurasi} di pos-renderer.js utk paint layar
+ * SEGERA dari data lokal, baru kemudian sinkron live berjalan diam-diam di latar belakang.
+ */
+ipcMain.handle('pos:konfigurasi-cache-baca', handlerCacheBaca('konfigurasi'));
 
 /**
  * Fitur "Multi-Toko" -- daftar toko yang boleh dioperasikan pengguna ini (lihat JavaDoc server

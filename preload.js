@@ -90,6 +90,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         onKatalogStatus: (callback) => ipcRenderer.on('pos:katalog-status', (event, status) => callback(status)),
         /** @return {Promise<{ok:boolean, data?:object, fromCache?:boolean, cachedAt?:string, pesan?:string}>} */
         konfigurasi: () => ipcRenderer.invoke('pos:konfigurasi'),
+        /** Baca konfigurasi TERSIMPAN saja, TANPA memicu percobaan jaringan -- dipakai layar Kasir utk paint instan saat boot (lihat JavaDoc {@code muatKatalogDanKonfigurasi} di pos-renderer.js). @return {Promise<{ok:boolean, data?:object|null, disimpanPada?:string}>} */
+        konfigurasiCacheBaca: () => ipcRenderer.invoke('pos:konfigurasi-cache-baca'),
         /** Fitur "Multi-Toko" -- lihat JavaDoc handler {@code pos:daftar-toko-saya} di main.js. @return {Promise<{ok:boolean, data?:{data:Array<{id:number,nama:string}>, tokoAktifId?:number}, offline?:boolean, pesan?:string}>} */
         daftarTokoSaya: () => ipcRenderer.invoke('pos:daftar-toko-saya'),
         /** @param {{tokoId:number}|number} payload @return {Promise<{ok:boolean, data?:object, pesan?:string}>} */

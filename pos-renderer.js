@@ -1463,15 +1463,74 @@
         window.electronAPI.posAPI.onKatalogStatus(segarkanLayarMuatDariStatus);
     }
 
+    /**
+     * Terapkan field2 respons {@code konfigurasi} (baik dari cache TERSIMPAN maupun hasil live) ke
+     * elemen2 UI Kasir -- dipisah dari alur fetch supaya logika yg SAMA bisa dipakai ulang baik utk
+     * paint instan dari cache (lihat {@code muatKatalogDanKonfigurasi}) maupun refresh diam2 di latar
+     * belakang begitu server benar2 terjangkau (lihat {@code segarkanKonfigurasiDiam}).
+     * @param {object} data
+     */
+    function terapkanDataKonfigurasi(data) {
+        pajakPersen = Number(data.pajakPersen) || 0;
+        tokoId = data.tokoId;
+        tokoNama = data.tokoNama || '';
+        pesanTerimaKasih = data.pesanTerimaKasih || '';
+        userId = data.userId || '';
+        semuaCaraBayar = data.caraBayar || [];
+        bolehTopup = !!data.bolehTopup;
+        elBtnTopUpTopbar.style.display = bolehTopup ? 'flex' : 'none';
+        isAdminAkun = !!data.isAdmin;
+        elNamaToko.textContent = tokoNama || (userId ? ('Kasir - ' + userId) : 'Kasir');
+        elLabelPajak.textContent = 'Pajak (' + pajakPersen + '%)';
+        renderGridMetode();
+    }
+
+    /**
+     * Gap-closure "layar Kasir masih terjebak di overlay 'Memuat...' saat server sedang restart":
+     * {@code posAPI.konfigurasi()} live HARUS mencoba jaringan dulu (perlu percobaan gagal utk tahu
+     * "offline") sebelum boleh jatuh ke cache -- selama server restart, percobaan itu bisa menggantung
+     * sampai batas waktu penuh. Dipanggil TANPA di-await oleh {@code muatKatalogDanKonfigurasi} (fire
+     * lalu lupakan) SETELAH overlay sudah ditutup, supaya sinkron live/daftar toko/status sesi kas
+     * berjalan murni di latar belakang -- tidak pernah lagi menahan tampilan awal Kasir.
+     */
+    async function segarkanKonfigurasiDiam() {
+        try {
+            const hasilKonfig = await window.electronAPI.posAPI.konfigurasi();
+            if (!hasilKonfig.ok) return;
+            terapkanDataKonfigurasi(hasilKonfig.data);
+            // Multi-Toko: gagal/offline diamkan sepenuhnya -- daftarTokoSaya tetap [] (kosong), yg
+            // berarti Kasir jatuh ke perilaku toko-tunggal lama tanpa kombo sama sekali, BUKAN
+            // memblokir layar hanya krn fitur tambahan ini tak terjangkau.
+            try {
+                const hasilDaftarToko = await window.electronAPI.posAPI.daftarTokoSaya();
+                if (hasilDaftarToko.ok && hasilDaftarToko.data) {
+                    daftarTokoSaya = hasilDaftarToko.data.data || [];
+                    // Belum pernah pilih toko (tokoAktifId server masih null) -- topbar jangan
+                    // menampilkan nama toko "rumah" lama yg berpotensi menyesatkan, ganti label
+                    // netral sampai kasir benar-benar memilih lewat overlay Buka Kas.
+                    if (daftarTokoSaya.length > 1 && hasilDaftarToko.data.tokoAktifId == null) {
+                        elNamaToko.textContent = 'Pilih Toko';
+                    }
+                }
+            } catch (eDaftarToko) { /* diamkan, lihat komentar di atas */ }
+            muatStatusSesiKas();
+            mulaiPollingPesananBaru();
+        } catch (e) { /* offline/gagal -- diam2, cache/UI lama (bila ada) tetap dipakai apa adanya */ }
+    }
+
     async function muatKatalogDanKonfigurasi() {
+        // Paint SEGERA dari data LOKAL SAJA (produk_cache + konfigurasi cache tersimpan) -- TIDAK
+        // pernah menunggu jaringan di sini, supaya Kasir tetap langsung terpakai walau server sedang
+        // restart/offline. Sinkron live (konfigurasi terbaru + daftar toko + status sesi kas) tetap
+        // berjalan, tapi di LATAR BELAKANG setelah overlay ini ditutup -- lihat segarkanKonfigurasiDiam.
         elLayarMuat.className = 'layar-penuh';
-        elLayarMuatTeks.textContent = 'Memuat katalog & gambar produk...';
+        elLayarMuatTeks.textContent = 'Memuat data tersimpan...';
         elLayarMuatProgressWrap.style.display = 'none';
         elLayarMuatProgressTeks.textContent = '';
         try {
-            const [hasilKatalog, hasilKonfig] = await Promise.all([
+            const [hasilKatalog, hasilKonfigCache] = await Promise.all([
                 window.electronAPI.posAPI.katalogKasirLokal(),
-                window.electronAPI.posAPI.konfigurasi()
+                window.electronAPI.posAPI.konfigurasiCacheBaca()
             ]);
 
             if (!hasilKatalog.ok) {
@@ -1485,42 +1544,14 @@
                 renderProduk();
             }
 
-            if (hasilKonfig.ok) {
-                pajakPersen = Number(hasilKonfig.data.pajakPersen) || 0;
-                tokoId = hasilKonfig.data.tokoId;
-                tokoNama = hasilKonfig.data.tokoNama || '';
-                pesanTerimaKasih = hasilKonfig.data.pesanTerimaKasih || '';
-                userId = hasilKonfig.data.userId || '';
-                semuaCaraBayar = hasilKonfig.data.caraBayar || [];
-                bolehTopup = !!hasilKonfig.data.bolehTopup;
-                elBtnTopUpTopbar.style.display = bolehTopup ? 'flex' : 'none';
-                isAdminAkun = !!hasilKonfig.data.isAdmin;
-                elNamaToko.textContent = tokoNama || (userId ? ('Kasir - ' + userId) : 'Kasir');
-                elLabelPajak.textContent = 'Pajak (' + pajakPersen + '%)';
-                renderGridMetode();
-                // Multi-Toko: gagal/offline diamkan sepenuhnya -- daftarTokoSaya tetap [] (kosong),
-                // yg berarti Kasir jatuh ke perilaku toko-tunggal lama tanpa kombo sama sekali, BUKAN
-                // memblokir layar hanya krn fitur tambahan ini tak terjangkau.
-                try {
-                    const hasilDaftarToko = await window.electronAPI.posAPI.daftarTokoSaya();
-                    if (hasilDaftarToko.ok && hasilDaftarToko.data) {
-                        daftarTokoSaya = hasilDaftarToko.data.data || [];
-                        // Belum pernah pilih toko (tokoAktifId server masih null) -- topbar jangan
-                        // menampilkan nama toko "rumah" lama yg berpotensi menyesatkan, ganti label
-                        // netral sampai kasir benar-benar memilih lewat overlay Buka Kas.
-                        if (daftarTokoSaya.length > 1 && hasilDaftarToko.data.tokoAktifId == null) {
-                            elNamaToko.textContent = 'Pilih Toko';
-                        }
-                    }
-                } catch (eDaftarToko) { /* diamkan, lihat komentar di atas */ }
-                muatStatusSesiKas();
-                mulaiPollingPesananBaru();
-            } else if (!hasilKatalog.ok) {
-                window.PesanDetail.tampilkanDariHasil(hasilKonfig);
+            if (hasilKonfigCache.ok && hasilKonfigCache.data) {
+                terapkanDataKonfigurasi(hasilKonfigCache.data);
             }
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }
+
+        segarkanKonfigurasiDiam();
     }
 
     /**
@@ -1690,7 +1721,27 @@
         );
         sembunyikanSearchDropdown();
         try { localStorage.setItem(KUNCI_MODE_LAYOUT, mode); } catch (e) { /* abaikan -- murni preferensi tampilan */ }
+        if (penuh) pastikanFokusPencarianModeFull();
     }
+
+    /**
+     * Ramah barcode scanner: di mode "Fokus Keranjang" (layar kios/kecil), kotak pencarian WAJIB selalu
+     * siap menerima ketikan scanner TANPA kasir perlu klik dulu -- scanner fisik mengetik karakter+Enter
+     * ke elemen manapun yg SEDANG fokus, jadi begitu fokus "lepas" ke sesuatu yg bukan field isian (klik
+     * area kosong/kartu produk/tombol), kotak pencarian segera direbut fokusnya kembali. SENGAJA tidak
+     * mengganggu field lain yg memang sedang diisi kasir (mis. Uang Diterima, kolom modal Alasan
+     * Pembatalan/Top Up) -- hanya bertindak kalau elemen yg baru menerima fokus BUKAN input/textarea/
+     * select/contenteditable, supaya kasir tetap bisa mengetik normal di field lain apa pun.
+     */
+    function pastikanFokusPencarianModeFull() {
+        if (modeLayoutAktif !== 'keranjang-penuh') return;
+        const aktif = document.activeElement;
+        if (aktif === elCariProduk) return;
+        const tag = aktif ? aktif.tagName : '';
+        const sedangDiInputLain = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (aktif && aktif.isContentEditable);
+        if (!sedangDiInputLain) elCariProduk.focus();
+    }
+    document.addEventListener('focusout', () => setTimeout(pastikanFokusPencarianModeFull, 50));
 
     elBtnModeKeranjangPenuh.addEventListener('click', () => terapkanModeLayout('keranjang-penuh'));
     elBtnModeNormal.addEventListener('click', () => terapkanModeLayout('normal'));
