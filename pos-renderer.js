@@ -352,6 +352,18 @@
         } catch (e) { elPickerInfoCache.textContent = ''; }
     }
 
+    /**
+     * Daftar hasil Pilih Member yg SEDANG tampil, urutan sama persis dgn kartu yg dirender -- dipakai
+     * listener Ctrl+angka di bawah utk merujuk kartu ke-N tanpa query ulang.
+     * @type {object[]}
+     */
+    let daftarHasilPickerMemberTerkini = [];
+
+    function pilihDariPickerMember(m) {
+        pilihMember(m);
+        elOverlayPickerMember.className = 'overlay';
+    }
+
     async function cariMemberDiModal(keyword) {
         let daftar = [];
         let pesanKosong = 'Tidak ada member yang cocok.';
@@ -374,6 +386,7 @@
     /** @param {string} [judul] label kecil di atas daftar (mis. "Transaksi Terbaru") -- kosongkan utk hasil pencarian biasa (tanpa label). */
     function renderDaftarPickerMember(daftar, dariCache, pesanKosong, judul) {
         elPickerDaftarMember.innerHTML = '';
+        daftarHasilPickerMemberTerkini = daftar;
         if (daftar.length === 0) {
             const kosong = document.createElement('div');
             kosong.className = 'picker-kosong';
@@ -395,10 +408,14 @@
             info.textContent = '⚠️ Offline -- hasil dari data tersimpan (saldo tidak bisa diperiksa sampai online kembali).';
             elPickerDaftarMember.appendChild(info);
         }
-        daftar.forEach((m) => {
+        daftar.forEach((m, idx) => {
+            // Ctrl+angka -- lihat listener keydown elCariMemberModal di bawah, sama persis dgn pola
+            // nomor-hasil dropdown cari produk.
+            const nomorPintasan = idx < 9 ? String(idx + 1) : (idx === 9 ? '0' : '');
             const kartu = document.createElement('div');
             kartu.className = 'picker-kartu-member';
-            kartu.innerHTML = '<div class="avatar"></div><div class="info"><div class="nama"></div><div class="sub"></div></div>';
+            kartu.innerHTML = '<div class="nomor-hasil"></div><div class="avatar"></div><div class="info"><div class="nama"></div><div class="sub"></div></div>';
+            kartu.querySelector('.nomor-hasil').textContent = nomorPintasan;
             kartu.querySelector('.avatar').innerHTML = avatarPickerHtml(m);
             kartu.querySelector('.nama').textContent = m.nama;
             kartu.querySelector('.sub').textContent = m.kodeIdentitas || '-';
@@ -408,13 +425,25 @@
                 badge.textContent = '\u{1F512} PIN';
                 kartu.appendChild(badge);
             }
-            kartu.addEventListener('click', () => {
-                pilihMember(m);
-                elOverlayPickerMember.className = 'overlay';
-            });
+            kartu.addEventListener('click', () => pilihDariPickerMember(m));
             elPickerDaftarMember.appendChild(kartu);
         });
     }
+
+    /**
+     * Pintasan Ctrl+angka utk daftar Pilih Member -- pola SAMA PERSIS dgn dropdown cari produk (lihat
+     * JavaDoc listener {@code elCariProduk} keydown di atas): Ctrl (bukan angka polos) supaya tidak
+     * bentrok dgn mengetik kode member numerik di {@code elCariMemberModal}.
+     */
+    elCariMemberModal.addEventListener('keydown', (event) => {
+        if (!event.ctrlKey) return;
+        if (!/^[0-9]$/.test(event.key)) return;
+        const idx = event.key === '0' ? 9 : (Number(event.key) - 1);
+        const m = daftarHasilPickerMemberTerkini[idx];
+        if (!m) return;
+        event.preventDefault();
+        pilihDariPickerMember(m);
+    });
 
     elBtnSinkronAnggota.addEventListener('click', async () => {
         elBtnSinkronAnggota.disabled = true;
@@ -1706,19 +1735,18 @@
     }
 
     /**
-     * Pintasan angka "1".."9","0" di kotak pencarian -- begitu dropdown hasil tampil, tekan angka yg
-     * tertera di baris (lihat {@code nomor-hasil} di atas) utk langsung menambahkannya ke keranjang,
-     * tanpa mouse. HANYA aktif kalau kata kunci yg SUDAH diketik BUKAN murni angka -- kalau kasir sedang
-     * mengetik kode produk numerik (mis. cari "123" lalu mau lanjut ke "1234"), angka berikutnya WAJIB
-     * tetap masuk ke kotak sbg lanjutan ketikan, bukan tertangkap sbg pintasan baris. Pencarian by-nama
-     * (huruf) tidak kena masalah ini krn nama produk nyaris tak pernah diikuti lanjutan digit yg
-     * disengaja.
+     * Pintasan Ctrl+angka ("Ctrl+1".."Ctrl+9","Ctrl+0") di kotak pencarian -- begitu dropdown hasil
+     * tampil, tekan Ctrl+angka yg tertera di baris (lihat {@code nomor-hasil} di atas) utk langsung
+     * menambahkannya ke keranjang, tanpa mouse. Dipilih Ctrl+angka (BUKAN angka polos) supaya TIDAK
+     * PERNAH bentrok dgn ketikan biasa -- kotak ini jg dipakai cari produk BY KODE NUMERIK, jadi angka
+     * polos wajib selalu bisa diketik apa adanya. Pola yg SAMA dipakai jg di Pilih Member ({@code
+     * elCariMemberModal}) dan Metode Pembayaran ({@code elOverlayMetode}) di bawah -- konsisten di
+     * SEMUA pencarian/pemilihan di layar Kasir.
      */
     elCariProduk.addEventListener('keydown', (event) => {
+        if (!event.ctrlKey) return;
         if (!elSearchDropdown.classList.contains('tampil')) return;
         if (!/^[0-9]$/.test(event.key)) return;
-        const keywordSaatIni = (elCariProduk.value || '').trim();
-        if (/^[0-9]+$/.test(keywordSaatIni)) return; // sedang cari by kode angka -- biarkan ketikan lanjut apa adanya
         const idx = event.key === '0' ? 9 : (Number(event.key) - 1);
         const p = daftarHasilPencarianTerkini[idx];
         if (!p) return;
@@ -1833,6 +1861,46 @@
         if (adaOverlayAktif()) return;
         const tombol = ambilTombol();
         if (tombol && !tombol.disabled) tombol.click();
+    });
+
+    /**
+     * ESC batal / Enter OK -- SEMUA popup (elemen {@code .overlay}) di layar Kasir, biar konsisten
+     * (permintaan kasir: "semua popup kalau klik ESC harus keluar/batal, kalau klik Enter lalu OK").
+     * Dipetakan per-overlay krn tiap modal beda tombol "tutup"/"OK"-nya -- modal berbasis pilih-dari-
+     * daftar (Pilih Member, Pilih Metode Pembayaran) SENGAJA tidak dipetakan {@code ok}-nya di sini krn
+     * "OK"-nya justru pintasan Ctrl+angka yg sudah ada sendiri (lihat listener keydown {@code
+     * elCariMemberModal}/{@code elOverlayMetode} masing2) -- Enter polos di kotak cari situ dibiarkan
+     * TANPA efek supaya tidak salah pilih member/metode secara tak sengaja.
+     */
+    const PETA_OVERLAY_ESC_ENTER = [
+        { overlay: elOverlayMetode, tutup: elBtnTutupMetode },
+        { overlay: elOverlayPickerMember, tutup: elBtnTutupPickerMember },
+        { overlay: elOverlayUpdate, tutup: elBtnTutupUpdate, ok: elBtnUpdateAksi },
+        { overlay: elOverlayTawaranUpdate, tutup: elBtnTutupTawaranUpdate, ok: elBtnTawaranUpdateSekarang },
+        { overlay: elOverlayUpdateRestart, tutup: elBtnTutupUpdateRestart, ok: elBtnRestartSekarang },
+        { overlay: elOverlaySesiKas, tutup: elBtnTutupSesiKas },
+        { overlay: elOverlayPinKasir, tutup: elBtnBatalPinKasir, ok: elBtnSubmitPinKasir },
+        { overlay: elOverlayAkunSaya, tutup: elBtnTutupAkunSaya },
+        { overlay: elOverlayTopUpMandiri, tutup: elBtnTutupTopUpMandiri },
+        { overlay: elOverlayPesananBaru, tutup: elBtnTutupPesananBaru, ok: elBtnLihatPesananBaru }
+    ];
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' && event.key !== 'Enter') return;
+        const overlayAktif = document.querySelector('.overlay.tampil');
+        if (!overlayAktif) return;
+        const peta = PETA_OVERLAY_ESC_ENTER.find((p) => p.overlay === overlayAktif);
+        if (!peta) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            if (peta.tutup) peta.tutup.click();
+            return;
+        }
+        // Enter -- JANGAN dipicu kalau fokus sedang di textarea (Enter dipakai utk baris baru di sana)
+        // atau tombol (Enter di tombol yg fokus sudah otomatis memicu klik native, tak perlu campur
+        // tangan lagi -- kalau tetap dipaksa, dobel-klik).
+        const aktif = document.activeElement;
+        if (aktif && (aktif.tagName === 'TEXTAREA' || aktif.tagName === 'BUTTON')) return;
+        if (peta.ok && !peta.ok.disabled) { event.preventDefault(); peta.ok.click(); }
     });
 
     // ==== Fitur "Sesi Kasir" (Buka/Tutup Kas) -- mesin sama dgn versi JSP/ZK (SesiKasUtil di server) ====
@@ -2110,6 +2178,13 @@
 
     // ==== Modal metode pembayaran ====
 
+    function pilihMetodeBayar(cb) {
+        caraBayarTerpilih = { id: String(cb.id), nama: cb.nama, manual: !!cb.manual };
+        elMetodeTerpilihLabel.textContent = tebakIkonMetode(cb.nama) + ' ' + cb.nama;
+        elOverlayMetode.className = 'overlay';
+        segarkanKembalianDanTombol();
+    }
+
     function renderGridMetode() {
         elGridMetode.innerHTML = '';
         if (semuaCaraBayar.length === 0) {
@@ -2119,20 +2194,18 @@
             elGridMetode.appendChild(kosong);
             return;
         }
-        semuaCaraBayar.forEach((cb) => {
+        semuaCaraBayar.forEach((cb, idx) => {
+            // Ctrl+angka -- lihat listener keydown document di bawah, sama pola dgn Pilih Member/cari produk.
+            const nomorPintasan = idx < 9 ? String(idx + 1) : (idx === 9 ? '0' : '');
             const kartu = document.createElement('button');
             kartu.type = 'button';
             kartu.className = 'kartu-metode' + (caraBayarTerpilih && caraBayarTerpilih.id === String(cb.id) ? ' aktif' : '');
-            kartu.innerHTML = '<span class="ico"></span><span class="label"></span><span class="ket"></span>';
+            kartu.innerHTML = '<div class="nomor-hasil"></div><span class="ico"></span><span class="label"></span><span class="ket"></span>';
+            kartu.querySelector('.nomor-hasil').textContent = nomorPintasan;
             kartu.querySelector('.ico').textContent = tebakIkonMetode(cb.nama);
             kartu.querySelector('.label').textContent = cb.nama;
             kartu.querySelector('.ket').textContent = cb.manual ? 'Verifikasi manual' : 'Langsung tuntas';
-            kartu.addEventListener('click', () => {
-                caraBayarTerpilih = { id: String(cb.id), nama: cb.nama, manual: !!cb.manual };
-                elMetodeTerpilihLabel.textContent = tebakIkonMetode(cb.nama) + ' ' + cb.nama;
-                elOverlayMetode.className = 'overlay';
-                segarkanKembalianDanTombol();
-            });
+            kartu.addEventListener('click', () => pilihMetodeBayar(cb));
             elGridMetode.appendChild(kartu);
         });
     }
@@ -2140,6 +2213,23 @@
     elBtnPilihMetode.addEventListener('click', () => { elOverlayMetode.className = 'overlay tampil'; });
     elBtnTutupMetode.addEventListener('click', () => { elOverlayMetode.className = 'overlay'; });
     elOverlayMetode.addEventListener('click', (event) => { if (event.target === elOverlayMetode) elOverlayMetode.className = 'overlay'; });
+
+    /**
+     * Pintasan Ctrl+angka utk kartu Metode Pembayaran -- ditaruh di {@code document} (bukan elemen
+     * tertentu) krn modal ini TIDAK punya kotak teks sendiri utk difokuskan (murni kartu klik) -- aman
+     * krn digerbangi cek overlay tampil, jadi tak bentrok dgn pintasan Ctrl+angka lain (Pilih Member/
+     * cari produk) yg masing2 sudah digerbangi kondisi overlay/dropdown-nya sendiri.
+     */
+    document.addEventListener('keydown', (event) => {
+        if (!event.ctrlKey) return;
+        if (!elOverlayMetode.classList.contains('tampil')) return;
+        if (!/^[0-9]$/.test(event.key)) return;
+        const idx = event.key === '0' ? 9 : (Number(event.key) - 1);
+        const cb = semuaCaraBayar[idx];
+        if (!cb) return;
+        event.preventDefault();
+        pilihMetodeBayar(cb);
+    });
 
     // ==== Keranjang ====
 

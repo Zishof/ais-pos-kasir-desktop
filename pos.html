@@ -125,13 +125,17 @@
     .search-dropdown .info-hasil .k { font-size: 10.5px; color: var(--muted); }
     .search-dropdown .harga-hasil { font-size: 12px; font-weight: 700; color: var(--primary); flex-shrink: 0; white-space: nowrap; }
     .search-dropdown .kosong-hasil { padding: 16px 12px; text-align: center; color: var(--faint); font-size: 12px; }
-    /* Nomor pintasan keyboard "1".."9","0" di tiap baris hasil pencarian -- gap-closure kasir memilih
-       hasil TANPA mouse (tekan angkanya langsung). Lihat listener keydown elCariProduk di pos-renderer.js. */
-    .search-dropdown .nomor-hasil {
+    /* Nomor pintasan keyboard "1".."9","0" di tiap baris hasil pencarian/pilihan -- gap-closure kasir
+       memilih TANPA mouse (tekan Ctrl+angka). Dipakai di TIGA tempat: dropdown cari produk, daftar Pilih
+       Member, dan kartu Metode Pembayaran -- lihat listener keydown masing2 di pos-renderer.js. Kelas
+       global (bukan cuma di dalam .search-dropdown) supaya bisa dipakai ulang di ketiganya. */
+    .nomor-hasil {
         width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg);
         display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         font-family: 'Consolas', 'Courier New', monospace; font-size: 10.5px; font-weight: 800; color: var(--muted);
     }
+    .kartu-metode { position: relative; }
+    .kartu-metode .nomor-hasil { position: absolute; top: 8px; right: 8px; }
     .btn-sync {
         background: var(--surface); color: var(--ink); border: 1.5px solid var(--border);
         border-radius: 9px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
