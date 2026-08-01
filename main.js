@@ -3572,17 +3572,26 @@ function halamanPratinjauStruk(isi, style) {
         + '.pv-toolbar button{flex:1;padding:12px;border-radius:8px;border:none;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;}'
         + '.pv-btn-cetak{background:#2563eb;color:#fff;}.pv-btn-cetak:hover{background:#1d4ed8;}'
         + '.pv-btn-tutup{background:#e2e8f0;color:#1e293b;}.pv-btn-tutup:hover{background:#cbd5e1;}'
+        + '.pv-kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:16px;padding:0 4px;margin-left:6px;border:1px solid currentColor;opacity:.55;border-radius:4px;font-family:Consolas,monospace;font-size:10px;font-weight:800;vertical-align:middle;}'
         + '@media print{.pv-toolbar,.pv-scroll{display:none !important;}}'
         + style
         + '</style></head><body>'
         + '<div class="pv-scroll"><div class="pv-kertas">' + isi + '</div></div>'
         + '<div class="pv-toolbar">'
-        + '<button class="pv-btn-tutup" id="btnTutup">Tutup</button>'
-        + '<button class="pv-btn-cetak" id="btnCetak">\u{1F5A8}️ Cetak</button>'
+        + '<button class="pv-btn-tutup" id="btnTutup">Tutup<span class="pv-kbd">Esc</span></button>'
+        + '<button class="pv-btn-cetak" id="btnCetak">\u{1F5A8}️ Cetak<span class="pv-kbd">&#9166;</span></button>'
         + '</div>'
         + '<script>'
         + "document.getElementById('btnCetak').addEventListener('click', () => window.strukPreviewAPI.cetak());"
         + "document.getElementById('btnTutup').addEventListener('click', () => window.strukPreviewAPI.tutup());"
+        // Gap-closure "popup ini belum ada pintasan keyboard, ESC belum berfungsi" -- jendela pratinjau
+        // ini BrowserWindow terpisah (bukan overlay di dalam pos.html), jadi tidak ikut kena pintasan
+        // ESC/Enter generik layar Kasir; dipasang sendiri di sini.
+        + "document.addEventListener('keydown', (e) => {"
+        + "  if (e.key === 'Escape') { e.preventDefault(); window.strukPreviewAPI.tutup(); }"
+        + "  else if (e.key === 'Enter') { e.preventDefault(); window.strukPreviewAPI.cetak(); }"
+        + "});"
+        + "document.getElementById('btnCetak').focus();"
         + '</script></body></html>';
 }
 
@@ -3679,16 +3688,23 @@ function halamanPratinjauPriceTag(isi) {
         + '.pv-toolbar button{flex:1;padding:12px;border-radius:8px;border:none;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;}'
         + '.pv-btn-cetak{background:#2563eb;color:#fff;}.pv-btn-cetak:hover{background:#1d4ed8;}'
         + '.pv-btn-tutup{background:#e2e8f0;color:#1e293b;}.pv-btn-tutup:hover{background:#cbd5e1;}'
+        + '.pv-kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:16px;padding:0 4px;margin-left:6px;border:1px solid currentColor;opacity:.55;border-radius:4px;font-family:Consolas,monospace;font-size:10px;font-weight:800;vertical-align:middle;}'
         + '@media print{.pv-toolbar{display:none !important;}.pv-scroll{padding:0;overflow:visible;}}'
         + '</style></head><body>'
         + '<div class="pv-scroll">' + isi + '</div>'
         + '<div class="pv-toolbar">'
-        + '<button class="pv-btn-tutup" id="btnTutup">Tutup</button>'
-        + '<button class="pv-btn-cetak" id="btnCetak">\u{1F5A8}️ Cetak</button>'
+        + '<button class="pv-btn-tutup" id="btnTutup">Tutup<span class="pv-kbd">Esc</span></button>'
+        + '<button class="pv-btn-cetak" id="btnCetak">\u{1F5A8}️ Cetak<span class="pv-kbd">&#9166;</span></button>'
         + '</div>'
         + '<script>'
         + "document.getElementById('btnCetak').addEventListener('click', () => window.cetakPreviewAPI.cetak());"
         + "document.getElementById('btnTutup').addEventListener('click', () => window.cetakPreviewAPI.tutup());"
+        // Pola sama dgn halamanPratinjauStruk -- lihat JavaDoc di sana.
+        + "document.addEventListener('keydown', (e) => {"
+        + "  if (e.key === 'Escape') { e.preventDefault(); window.cetakPreviewAPI.tutup(); }"
+        + "  else if (e.key === 'Enter') { e.preventDefault(); window.cetakPreviewAPI.cetak(); }"
+        + "});"
+        + "document.getElementById('btnCetak').focus();"
         + '</script></body></html>';
 }
 

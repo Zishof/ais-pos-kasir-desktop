@@ -1,6 +1,6 @@
 {
   "name": "ais-pos-desktop",
-  "version": "1.0.80",
+  "version": "1.0.81",
   "description": "Aplikasi Desktop POS Kasir AIS (Enterprise Education) - shell Electron dual-layar (layar kasir + layar pelanggan), dengan wizard pengaturan alamat server (host/contextpath/HTTPS) saat pertama kali dijalankan.",
   "main": "main.js",
   "author": "Enterprise Education <noreply@ais-pos.local>",
@@ -48,6 +48,7 @@
       "pos-renderer.js",
       "pesan-detail.js",
       "bantuan.js",
+      "popup-pintasan.js",
       "akses-menu.js",
       "menu-tree.js",
       "logout-akun.js",
