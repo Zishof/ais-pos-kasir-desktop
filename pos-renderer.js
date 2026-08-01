@@ -1582,6 +1582,13 @@
         } finally {
             elLayarMuat.className = 'layar-penuh tersembunyi';
         }
+        // Gap-closure "kotak pencarian belum fokus saat layar Kasir pertama kali dibuka": panggilan
+        // {@code pastikanFokusPencarian()} yg SUDAH ADA (dipanggil dari {@code terapkanModeLayout} saat
+        // boot) terjadi SEBELUM ini -- pada saat itu overlay {@code #layarMuat} MASIH tampil (baru saja
+        // di-set di atas fungsi ini), jadi {@link adaOverlayAktif} membatalkannya. Begitu overlay
+        // BENAR2 tertutup (baris di atas), WAJIB dipanggil ULANG di sini -- kalau tidak, kotak
+        // pencarian baru dapat fokus setelah kasir tak sengaja memicu suatu focusout di tempat lain.
+        pastikanFokusPencarian();
 
         segarkanKonfigurasiDiam();
     }
