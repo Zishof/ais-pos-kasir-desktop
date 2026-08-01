@@ -52,6 +52,7 @@
 				{ tombol: 'Ctrl+1..9, Ctrl+0', keterangan: 'Pilih baris ke-1..9 atau ke-10 pada hasil pencarian produk, daftar Pilih Member, atau kartu Metode Pembayaran -- nomornya tertera di tiap baris/kartu.' },
 				{ tombol: 'Enter', keterangan: 'Saat mengetik/scan di kotak cari produk: tambahkan barang yang kodenya cocok persis ke keranjang. Di dalam popup lain: memicu tombol aksi utamanya.' },
 				{ tombol: 'Esc', keterangan: 'Menutup/membatalkan popup yang sedang terbuka.' },
+				{ tombol: 'F6 / F2 / Enter', keterangan: 'Khusus di layar "Transaksi Berhasil" (setelah bayar): F6 Buka Laci, F2 Cetak Struk, Enter (atau Esc) mulai Transaksi Baru.' },
 			],
 		},
 		ringkasan: {

@@ -2580,6 +2580,21 @@
         selesaikanTransaksi();
     });
 
+    /**
+     * Pintasan keyboard layar "Transaksi Berhasil" -- gap-closure "form ini belum ada pintasan
+     * keyboard-nya". Layar ini SALING EKSKLUSIF dgn kotak Kasir biasa (begitu tampil, tak ada lagi yg
+     * bisa dikerjakan di keranjang) DAN sudah otomatis mematikan pintasan F1-F9 global (lihat {@code
+     * adaOverlayAktif} yg mengecek {@code elLayarSukses.classList.contains('tampil')}), jadi aman
+     * memakai ulang F6 (arti SAMA -- Buka Laci) dan F2 (konteks BEDA drpd F2=Bayar di layar Kasir,
+     * krn Bayar sudah tak relevan setelah transaksi selesai -- lihat catatan menu Bantuan).
+     */
+    document.addEventListener('keydown', (event) => {
+        if (!elLayarSukses.classList.contains('tampil')) return;
+        if (event.key === 'F6') { event.preventDefault(); elBtnBukaLaciSukses.click(); return; }
+        if (event.key === 'F2') { event.preventDefault(); elBtnCetakStruk.click(); return; }
+        if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); elBtnTransaksiBaru.click(); }
+    });
+
     function selesaikanTransaksi() {
         cart = [];
         draftAktifId = null;

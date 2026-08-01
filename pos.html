@@ -526,11 +526,14 @@
     button.btn-transaksi-baru {
         flex: 1; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 11px;
         font-size: 13.5px; font-weight: 800; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
     }
     button.btn-transaksi-baru:hover { background: var(--primary-dark); }
+    button.btn-transaksi-baru .tombol-fkey { border-color: rgba(255,255,255,.7); }
     button.btn-cetak-struk {
         flex: 1; padding: 12px; background: var(--surface); color: var(--ink); border: 1.5px solid var(--border);
         border-radius: 11px; font-size: 13.5px; font-weight: 800; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
     }
     button.btn-cetak-struk:hover { border-color: var(--primary); color: var(--primary); }
 
@@ -842,9 +845,9 @@
                 <div class="baris total"><span>Total</span><span id="rincianTotal">Rp 0</span></div>
             </div>
             <div class="baris-aksi-sukses">
-                <button type="button" class="btn-cetak-struk" id="btnBukaLaciSukses" data-i18n="Buka Laci">Buka Laci</button>
-                <button type="button" class="btn-cetak-struk" id="btnCetakStruk" data-i18n="Cetak Struk">Cetak Struk</button>
-                <button type="button" class="btn-transaksi-baru" id="btnTransaksiBaru" data-i18n="Transaksi Baru">Transaksi Baru</button>
+                <button type="button" class="btn-cetak-struk" id="btnBukaLaciSukses" title="Buka Laci (F6)"><span class="tombol-fkey">F6</span><span data-i18n="Buka Laci">Buka Laci</span></button>
+                <button type="button" class="btn-cetak-struk" id="btnCetakStruk" title="Cetak Struk (F2)"><span class="tombol-fkey">F2</span><span data-i18n="Cetak Struk">Cetak Struk</span></button>
+                <button type="button" class="btn-transaksi-baru" id="btnTransaksiBaru" title="Transaksi Baru (Enter)"><span class="tombol-fkey">&#9166;</span><span data-i18n="Transaksi Baru">Transaksi Baru</span></button>
             </div>
         </div>
     </div>
