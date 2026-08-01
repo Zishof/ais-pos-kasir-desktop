@@ -20,6 +20,18 @@
     /** Fallback kalau {@code data.pesanTerimaKasih} kosong (mis. data lama dari sebelum fitur ini ada) -- SENGAJA sama persis dgn {@code Toko.PESAN_TERIMA_KASIH_DEFAULT} di server, supaya perilaku "belum pernah disunting -> teks formal" konsisten di kedua sisi. */
     var PESAN_TERIMA_KASIH_FALLBACK = 'Terima Kasih Telah Berbelanja, Semoga Belanja Berkah Berpahala';
 
+    /**
+     * Gap-closure "aplikasi sering exit saat cetak struk" -- proses utama SUDAH punya antrean sendiri
+     * (lihat {@code antrekanCetak} di main.js) yg membuat percobaan cetak beruntun tetap AMAN (tak
+     * pernah dua {@code webContents.print()} berjalan bersamaan), tapi tanpa penanda di sini kasir yg
+     * menekan tombol "Cetak Struk" berkali-kali cepat tidak dapat umpan balik APA PUN selagi menunggu
+     * antrean itu (tombolnya terlihat diam, terkesan tak bereaksi) -- mendorong makin banyak klik lagi.
+     * Flag SATU-SATUNYA ini (dibagi {@code cetak}/{@code cetakDenganPreview}, keduanya berakhir di
+     * antrean proses utama yg SAMA) membuat klik ulang selagi masih berjalan cukup diabaikan dgn pesan
+     * jelas, bukan menumpuk permintaan cetak baru yg toh akan menunggu tanpa terlihat jelas.
+     */
+    var sedangMencetak = false;
+
     function formatRp(angka) {
         const n = Number(angka) || 0;
         return 'Rp ' + Math.round(n).toLocaleString('id-ID');
@@ -121,11 +133,15 @@
             window.alert('Fitur cetak struk tidak tersedia di lingkungan ini.');
             return;
         }
+        if (sedangMencetak) return; // lihat JavaDoc sedangMencetak -- klik ulang selagi masih berjalan diabaikan diam2
+        sedangMencetak = true;
         try {
             const r = await window.electronAPI.posAPI.cetakStrukDiam({ html: bangunHtml(data) });
             if (!r || !r.ok) window.alert('Gagal mencetak struk: ' + ((r && r.pesan) || 'Penyebab tidak diketahui.'));
         } catch (e) {
             window.alert('Gagal mencetak struk: ' + (e && e.message ? e.message : e));
+        } finally {
+            sedangMencetak = false;
         }
     }
 
@@ -152,11 +168,15 @@
             window.alert('Fitur cetak struk tidak tersedia di lingkungan ini.');
             return;
         }
+        if (sedangMencetak) return; // lihat JavaDoc sedangMencetak -- termasuk selagi jendela pratinjau SEBELUMNYA masih terbuka
+        sedangMencetak = true;
         try {
             const r = await window.electronAPI.posAPI.cetakStrukPreview({ isi: bangunIsi(data), style: STYLE_STRUK });
             if (!r || !r.ok) window.alert('Gagal mencetak struk: ' + ((r && r.pesan) || 'Penyebab tidak diketahui.'));
         } catch (e) {
             window.alert('Gagal mencetak struk: ' + (e && e.message ? e.message : e));
+        } finally {
+            sedangMencetak = false;
         }
     }
 

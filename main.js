@@ -3527,9 +3527,63 @@ function pulihkanFokusJendelaUtama() {
     }
 }
 
-ipcMain.handle('pos:cetak-struk-diam', async (event, payload) => {
+/**
+ * Gap-closure "aplikasi exit begitu Cetak Struk dibatalkan" -- keluhan lapangan yg TERNYATA beda akar
+ * masalah dari antrean cetak di bawah: kalau printer DEFAULT Windows kebetulan printer VIRTUAL (mis.
+ * "Microsoft Print to PDF", bawaan Windows 10/11) -- bukan printer struk fisik -- Windows SENDIRI
+ * memunculkan dialog native "Save Print Output As" (di LUAR kendali Electron sama sekali, {@code
+ * silent:true} TIDAK BISA menekannya krn printer virtual scr fundamental butuh lokasi berkas tujuan,
+ * beda dgn printer fisik yg langsung mencetak ke kertas). Kasir yg menekan "Cancel" pada dialog itu
+ * ternyata memicu crash proses yg TIDAK tertangkap {@code process.on('uncaughtException')} maupun
+ * {@code app.on('render-process-gone'/'child-process-gone')} -- gejalanya sama ("aplikasi tiba-tiba
+ * tertutup"), tapi TITIK PICUNYA beda (interaksi dialog file OS, bukan crash renderer/GPU Chromium
+ * biasa yg sudah ditangani). Satu2nya cara aman: JANGAN PERNAH coba cetak struk ke printer semacam
+ * ini SAMA SEKALI -- deteksi dulu via nama printer default, tolak dgn pesan jelas SEBELUM sempat
+ * memicu dialog itu (struk memang tak masuk akal jadi PDF, kasir perlu kertas fisik).
+ */
+const POLA_PRINTER_VIRTUAL = [
+    /print to pdf/i, /microsoft xps/i, /onenote/i, /\bfax\b/i, /pdf24/i, /cutepdf/i, /pdfcreator/i,
+    /novapdf/i, /bullzip/i, /dopdf/i, /pdf writer/i, /xps document writer/i
+];
+
+/** @return {Promise<string|null>} nama printer default kalau TERDETEKSI virtual (bukan fisik), else null (aman dicetak, ATAU gagal membaca daftar printer -- fail-open, jangan blokir cetak hanya krn ini). */
+async function printerDefaultVirtual(webContents) {
+    try {
+        const daftar = await webContents.getPrintersAsync();
+        const def = daftar.find((p) => p.isDefault) || null;
+        if (def && POLA_PRINTER_VIRTUAL.some((re) => re.test(def.name))) return def.name;
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Antrean SATU-PINTU utk SEMUA jalur cetak (struk diam, struk pratinjau, price tag pratinjau) --
+ * gap-closure "aplikasi sering exit saat cetak struk" (keluhan lapangan, pola SAMA dgn {@code
+ * pos:buka-laci-kasir}). Ketiganya sama2 membuat {@code BrowserWindow} tersembunyi/pratinjau lalu
+ * memanggil {@code webContents.print()} -- kalau kasir menekan tombol cetak berkali-kali cepat (mis.
+ * struk sebelumnya belum juga keluar dari printer), TANPA antrean ini beberapa jendela cetak +
+ * panggilan print bisa berjalan BERSAMAAN, membebani driver printer thermal yg (per catatan JavaDoc
+ * {@code app.on('child-process-gone')} di bawah) SUDAH DIKENAL rawan menjatuhkan proses GPU Chromium
+ * kalau printer/driver-nya lambat/tak stabil -- beberapa panggilan cetak bertumpuk memperbesar risiko
+ * itu. Antrean ini membuat SETIAP permintaan cetak menunggu giliran (dieksekusi satu-satu, bukan
+ * ditolak) -- kasir tetap dapat balasan, printer cuma memproses satu per satu spt seharusnya.
+ */
+let antrianCetak = Promise.resolve();
+function antrekanCetak(fn) {
+    const hasil = antrianCetak.then(fn, fn);
+    antrianCetak = hasil.catch(() => {});
+    return hasil;
+}
+
+ipcMain.handle('pos:cetak-struk-diam', (event, payload) => antrekanCetak(async () => {
     const html = (payload && payload.html) || '';
     if (!html) return { ok: false, pesan: 'Tidak ada isi struk untuk dicetak.' };
+    const printerVirtual = await printerDefaultVirtual(event.sender);
+    if (printerVirtual) {
+        return { ok: false, pesan: 'Printer default Windows saat ini adalah "' + printerVirtual + '" (printer virtual/PDF, bukan printer struk fisik) -- struk TIDAK bisa dicetak ke sini. Ubah printer default ke printer struk yang sebenarnya lewat Pengaturan Windows, lalu coba lagi.' };
+    }
     let winCetak = null;
     try {
         winCetak = new BrowserWindow({
@@ -3549,7 +3603,7 @@ ipcMain.handle('pos:cetak-struk-diam', async (event, payload) => {
         if (winCetak && !winCetak.isDestroyed()) winCetak.destroy();
         pulihkanFokusJendelaUtama();
     }
-});
+}));
 
 /**
  * Bangun halaman pratinjau struk LENGKAP DENGAN toolbar "Cetak"/"Tutup" sendiri -- dipakai
@@ -3612,7 +3666,7 @@ function halamanPratinjauStruk(isi, style) {
  * @param {{isi:string, style:string}} payload lihat {@link halamanPratinjauStruk}.
  * @return {Promise<{ok:boolean, pesan?:string}>}
  */
-ipcMain.handle('pos:cetak-struk-preview', async (event, payload) => {
+ipcMain.handle('pos:cetak-struk-preview', (event, payload) => antrekanCetak(async () => {
     const isi = (payload && payload.isi) || '';
     const style = (payload && payload.style) || '';
     if (!isi) return { ok: false, pesan: 'Tidak ada isi struk untuk dicetak.' };
@@ -3639,9 +3693,15 @@ ipcMain.handle('pos:cetak-struk-preview', async (event, payload) => {
                 ipcMain.removeListener('pos:struk-preview-tutup', onTutup);
                 winCetak.removeListener('closed', onTertutup);
             };
-            const onCetak = (ev) => {
+            const onCetak = async (ev) => {
                 if (!ev.sender || ev.sender.id !== wcId) return; // sinyal dari jendela pratinjau LAIN -- abaikan
                 bersihkan();
+                const printerVirtual = await printerDefaultVirtual(winCetak.webContents);
+                if (printerVirtual) {
+                    resolve({ ok: false, pesan: 'Printer default Windows saat ini adalah "' + printerVirtual + '" (printer virtual/PDF, bukan printer struk fisik) -- struk TIDAK bisa dicetak ke sini. Ubah printer default ke printer struk yang sebenarnya lewat Pengaturan Windows, lalu coba lagi.' });
+                    if (!winCetak.isDestroyed()) winCetak.destroy();
+                    return;
+                }
                 winCetak.webContents.print({ silent: true, printBackground: true }, (sukses, alasanGagal) => {
                     resolve(sukses ? { ok: true } : { ok: false, pesan: alasanGagal || 'Gagal mencetak (printer default belum diatur di Windows?).' });
                     if (!winCetak.isDestroyed()) winCetak.destroy();
@@ -3668,7 +3728,7 @@ ipcMain.handle('pos:cetak-struk-preview', async (event, payload) => {
         if (winCetak && !winCetak.isDestroyed()) winCetak.destroy();
         pulihkanFokusJendelaUtama();
     }
-});
+}));
 
 /**
  * Bangun halaman pratinjau Cetak Price Tag/POP LENGKAP DENGAN toolbar "Cetak"/"Tutup" sendiri --
@@ -3717,7 +3777,7 @@ function halamanPratinjauPriceTag(isi) {
  * @param {{isi:string}} payload lihat {@link halamanPratinjauPriceTag}.
  * @return {Promise<{ok:boolean, pesan?:string}>}
  */
-ipcMain.handle('pos:cetak-pricetag-preview', async (event, payload) => {
+ipcMain.handle('pos:cetak-pricetag-preview', (event, payload) => antrekanCetak(async () => {
     const isi = (payload && payload.isi) || '';
     if (!isi) return { ok: false, pesan: 'Tidak ada label untuk dicetak -- pilih minimal satu produk.' };
     let winCetak = null;
@@ -3772,7 +3832,7 @@ ipcMain.handle('pos:cetak-pricetag-preview', async (event, payload) => {
         if (winCetak && !winCetak.isDestroyed()) winCetak.destroy();
         pulihkanFokusJendelaUtama();
     }
-});
+}));
 
 /**
  * Perintah "kick" ESC/POS standar industri (RawPrinterHelper, teknik P/Invoke winspool.drv yg sama
