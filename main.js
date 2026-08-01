@@ -96,6 +96,7 @@ const UPDATE_PREF_PATH = path.join(app.getPath('userData'), 'update-preferensi.j
  * potongan {@code idMesin} saat ditampilkan bila belum diisi).
  */
 const MESIN_PATH = path.join(app.getPath('userData'), 'identitas-mesin.json');
+const RAW_PRINTER_DLL_PATH = path.join(app.getPath('userData'), 'raw-printer-helper-laci.dll');
 
 /** @return {{idMesin:string, namaMesin:string}} identitas mesin ini -- idMesin di-generate+disimpan otomatis bila belum ada. */
 function bacaIdentitasMesin() {
@@ -3777,11 +3778,32 @@ ipcMain.handle('pos:cetak-pricetag-preview', async (event, payload) => {
  * Perintah "kick" ESC/POS standar industri (RawPrinterHelper, teknik P/Invoke winspool.drv yg sama
  * dgn KB322091 Microsoft) dibungkus PowerShell -- lihat JavaDoc {@link bukaLaciKasir} untuk alasan
  * pendekatan ini (bukan dependency npm native baru) dan cara kerjanya.
+ *
+ * <p><b>Gap-closure "aplikasi sering exit saat Buka Laci" (keluhan lapangan berulang)</b>: SEBELUM
+ * INI, {@code Add-Type -Language CSharp -TypeDefinition} meng-compile ULANG kode C# dari NOL setiap
+ * kali tombol ditekan -- men-spawn {@code csc.exe} (compiler .NET) di dalam {@code powershell.exe},
+ * operasi yg cukup berat (CPU+memori) utk mesin kasir 8GB RAM yg sudah pas-pasan. Kalau kasir
+ * menekan tombol berulang (mis. laci tak kunjung terbuka), beberapa proses compile bisa numpuk
+ * BERSAMAAN dan memicu tekanan memori sistem yg BUKAN exception JavaScript biasa (tak tertangkap
+ * {@code process.on('uncaughtException')}) -- Windows sendiri yg mengakhiri paksa proses saat OOM,
+ * persis gejala "aplikasi tiba-tiba keluar tanpa pesan apa pun". Sekarang assembly HANYA di-compile
+ * SEKALI SEUMUR HIDUP aplikasi (disimpan sbg {@code .dll} di {@link RAW_PRINTER_DLL_PATH}), lalu
+ * dimuat via {@code Add-Type -Path} (jauh lebih murah -- tinggal load DLL, tanpa compiler) di setiap
+ * panggilan berikutnya.</p>
  */
-const PS_SCRIPT_BUKA_LACI = `
+function buatSkripBukaLaci(byteHex) {
+    const dllPathPs = RAW_PRINTER_DLL_PATH.replace(/'/g, "''");
+    return `
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
-Add-Type -Language CSharp -TypeDefinition @"
+$dllPath = '${dllPathPs}'
+$dllSiapDipakai = $false
+if (Test-Path $dllPath) {
+    try { Add-Type -Path $dllPath -ErrorAction Stop; $dllSiapDipakai = $true }
+    catch { $dllSiapDipakai = $false } # dll rusak/versi PowerShell beda -- compile ulang di bawah
+}
+if (-not $dllSiapDipakai) {
+    Add-Type -Language CSharp -OutputAssembly $dllPath -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 public class RawPrinterHelperLaci {
@@ -3828,12 +3850,14 @@ public class RawPrinterHelperLaci {
     }
 }
 "@
+}
 $printerName = (New-Object System.Drawing.Printing.PrinterSettings).PrinterName
 if ([string]::IsNullOrEmpty($printerName)) { Write-Output "GAGAL:Printer default belum diatur di Windows."; exit 0 }
-$bytes = '__BYTE_HEX__'.Split(',') | ForEach-Object { [Convert]::ToByte($_, 16) }
+$bytes = '${byteHex}'.Split(',') | ForEach-Object { [Convert]::ToByte($_, 16) }
 $ok = [RawPrinterHelperLaci]::SendBytesToPrinter($printerName, $bytes)
 if ($ok) { Write-Output "OK:$printerName" } else { Write-Output "GAGAL:Windows menolak mengirim perintah ke printer $printerName." }
 `;
+}
 
 /**
  * Buka Laci Kasir (cash drawer) yang terhubung via kabel RJ11 ke port "Cash Drawer"/"DK" pada
@@ -3867,26 +3891,53 @@ if ($ok) { Write-Output "OK:$printerName" } else { Write-Output "GAGAL:Windows m
  *         admin pusat yg memeriksa dari jauh (lihat {@code errorLogKirim} server) tahu PERSIS apa yg
  *         sudah dicoba di mesin ini tanpa perlu bertanya balik ke kasir.
  */
+/**
+ * Penjaga tumpang-tindih -- gap-closure "aplikasi sering exit saat Buka Laci": kalau kasir menekan
+ * tombol berkali-kali cepat (mis. laci tak kunjung terbuka), TANPA penjaga ini tiap tekanan akan
+ * men-spawn {@code powershell.exe} BARU yg saling tumpang tindih, masing2 berpotensi mencoba
+ * compile-ulang assembly (lihat {@link buatSkripBukaLaci}) kalau file {@code .dll}-nya kebetulan
+ * sedang setengah tertulis oleh percobaan SEBELUMNYA yg belum selesai -- kombinasi tekanan memori +
+ * race kondisi file itulah yg paling mungkin memicu keluar paksa. Percobaan BARU selagi satu masih
+ * berjalan cukup MENUNGGU hasil yg sama (bukan memicu proses baru) -- kasir tetap dapat balasan,
+ * cuma sedikit lebih lambat kalau kebetulan sedang menunggu percobaan sebelumnya.
+ */
+let janjiBukaLaciBerjalan = null;
+
 ipcMain.handle('pos:buka-laci-kasir', (event, payload) => {
+    if (janjiBukaLaciBerjalan) return janjiBukaLaciBerjalan;
     const byteHex = (payload && payload.pinAlternatif) ? '1B,70,01,19,FA' : '1B,70,00,19,FA';
-    const script = PS_SCRIPT_BUKA_LACI.replace('__BYTE_HEX__', byteHex);
-    return new Promise((resolve) => {
-        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-            { timeout: 10000, windowsHide: true }, (error, stdout, stderr) => {
-                const out = (stdout || '').trim();
-                const detailTeknis = 'byteHex=' + byteHex + ' stdout="' + out + '" stderr="' + (stderr || '').trim() + '"'
-                    + (error ? (' execError="' + error.message + '"') : '');
-                if (error && !out) {
-                    resolve({ ok: false, pesan: 'Gagal menjalankan perintah buka laci: ' + ((stderr || '').trim() || error.message), detailTeknis: detailTeknis });
-                    return;
-                }
-                if (out.indexOf('OK:') === 0) {
-                    resolve({ ok: true, pesan: 'Perintah buka laci terkirim ke printer "' + out.slice(3) + '".', detailTeknis: detailTeknis });
-                } else {
-                    resolve({ ok: false, pesan: out.indexOf('GAGAL:') === 0 ? out.slice(6) : ('Gagal membuka laci: ' + (out || 'tidak ada respons.')), detailTeknis: detailTeknis });
-                }
-            });
-    });
+    let script;
+    try {
+        script = buatSkripBukaLaci(byteHex);
+    } catch (e) {
+        return Promise.resolve({ ok: false, pesan: 'Gagal menyiapkan perintah buka laci: ' + (e && e.message ? e.message : e) });
+    }
+    janjiBukaLaciBerjalan = new Promise((resolve) => {
+        try {
+            execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+                { timeout: 10000, windowsHide: true }, (error, stdout, stderr) => {
+                    const out = (stdout || '').trim();
+                    const detailTeknis = 'byteHex=' + byteHex + ' stdout="' + out + '" stderr="' + (stderr || '').trim() + '"'
+                        + (error ? (' execError="' + error.message + '"') : '');
+                    if (error && !out) {
+                        resolve({ ok: false, pesan: 'Gagal menjalankan perintah buka laci: ' + ((stderr || '').trim() || error.message), detailTeknis: detailTeknis });
+                        return;
+                    }
+                    if (out.indexOf('OK:') === 0) {
+                        resolve({ ok: true, pesan: 'Perintah buka laci terkirim ke printer "' + out.slice(3) + '".', detailTeknis: detailTeknis });
+                    } else {
+                        resolve({ ok: false, pesan: out.indexOf('GAGAL:') === 0 ? out.slice(6) : ('Gagal membuka laci: ' + (out || 'tidak ada respons.')), detailTeknis: detailTeknis });
+                    }
+                });
+        } catch (e) {
+            // execFile SEHARUSNYA selalu lewat callback (lihat dokumentasi Node), tapi dibungkus try/
+            // catch di sini juga -- lapisan pertahanan terakhir spesifik utk fitur ini, di ATAS
+            // process.on('uncaughtException') global yg sudah ada, supaya kasir SELALU dapat balasan
+            // JSON yg rapi (bukan aplikasi diam2 berhenti) apa pun yg terjadi.
+            resolve({ ok: false, pesan: 'Gagal menjalankan perintah buka laci: ' + (e && e.message ? e.message : e) });
+        }
+    }).finally(() => { janjiBukaLaciBerjalan = null; });
+    return janjiBukaLaciBerjalan;
 });
 
 /**

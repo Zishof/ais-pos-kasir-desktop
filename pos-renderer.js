@@ -807,6 +807,16 @@
      * kini SELALU menekan tombol sendiri, menghilangkan pemicu otomatis itu tanpa menghapus fiturnya.
      */
     async function bukaLaciKasir(diam, pinAlternatif) {
+        // Gap-closure "aplikasi sering exit saat Buka Laci": nonaktifkan KETIGA tombol (topbar,
+        // pin-alternatif, layar sukses) selama satu percobaan berjalan -- mencegah kasir menekan
+        // berkali-kali cepat kalau laci tak kunjung terbuka, yg tiap tekanannya men-spawn proses
+        // PowerShell baru (lihat JavaDoc main.js pos:buka-laci-kasir soal risiko tekanan memori dari
+        // tumpang-tindih percobaan di mesin RAM 8GB). Server sisi main.js SUDAH punya penjaga yg sama
+        // (janjiBukaLaciBerjalan) -- ini lapisan pertama di sisi kasir supaya UI jg terasa responsif
+        // (tombol terlihat nonaktif, bukan diam2 tak bereaksi thd klik berulang).
+        elBtnBukaLaci.disabled = true;
+        elBtnBukaLaciAlt.disabled = true;
+        elBtnBukaLaciSukses.disabled = true;
         try {
             const hasil = await window.electronAPI.posAPI.bukaLaciKasir({ pinAlternatif: !!pinAlternatif });
             // Gap-closure keluhan lapangan "muncul 'perintah terkirim ke printer' tapi laci tak
@@ -832,6 +842,10 @@
             }
         } catch (e) {
             if (!diam) tampilkanToast('error', 'Gagal membuka laci: ' + (e && e.message ? e.message : e));
+        } finally {
+            elBtnBukaLaci.disabled = false;
+            elBtnBukaLaciAlt.disabled = false;
+            elBtnBukaLaciSukses.disabled = false;
         }
     }
     elBtnBukaLaci.addEventListener('click', () => bukaLaciKasir(false, false));
