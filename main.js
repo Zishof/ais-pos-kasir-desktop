@@ -586,9 +586,15 @@ function openSetupWindow() {
     setupWindow.loadFile('setup.html');
     setupWindow.on('closed', () => {
         setupWindow = null;
-        // Bila ditutup TANPA menyimpan (mis. pengguna klik X) dan belum pernah ada jendela utama
-        // yang jalan sama sekali, aplikasi tidak punya alasan untuk tetap hidup -- keluar bersih.
-        if (!mainWindow) { catatKeluarJikaJendelaTerakhir('wizard pengaturan'); app.quit(); }
+        // Gap-closure "klik Ubah Alamat Server dari login langsung exit": pengecekan SEBELUM INI
+        // hanya melihat {@code !mainWindow}, TIDAK PERNAH melihat {@code loginWindow} -- padahal
+        // {@code setup:save} SENGAJA membuka loginWindow DULU baru menghancurkan setupWindow supaya
+        // ada jendela lain yg "hidup" saat closed ini terpicu (lihat komentar {@code setup:save}).
+        // Tanpa cek {@code loginWindow} di sini, urutan itu percuma -- {@code app.quit()} tetap
+        // terpicu krn mainWindow memang belum pernah ada pada instalasi pertama/alur ubah-server,
+        // padahal loginWindow yg baru dibuka SEHARUSNYA jadi alasan aplikasi tetap hidup. Sekarang
+        // baru keluar kalau BENAR2 tak ada jendela penerus (login MAUPUN kasir) yg masih terbuka.
+        if (!mainWindow && !loginWindow) { catatKeluarJikaJendelaTerakhir('wizard pengaturan'); app.quit(); }
     });
 }
 
@@ -619,9 +625,15 @@ function openLoginWindow(cfg) {
     loginWindow.loadFile('login.html');
     loginWindow.on('closed', () => {
         loginWindow = null;
-        // Ditutup TANPA berhasil login (mis. klik X) dan belum pernah ada jendela kasir utama sama
-        // sekali -> aplikasi tidak punya alasan tetap hidup, sama seperti pola openSetupWindow().
-        if (!mainWindow) { catatKeluarJikaJendelaTerakhir('login'); app.quit(); }
+        // Gap-closure "klik Ubah Alamat Server dari login langsung exit" (bug NYATA yg dilaporkan
+        // pengguna): {@code login:ubah-server} SENGAJA membuka setupWindow DULU baru menghancurkan
+        // loginWindow (destroy() memicu 'closed' ini SECARA SINKRON) -- tapi pengecekan lama hanya
+        // melihat {@code !mainWindow} (SELALU true di titik ini, krn user belum pernah login), sama
+        // sekali tak melihat apakah setupWindow yg baru dibuka masih ada -- akibatnya app.quit()
+        // tetap terpicu meski setupWindow baru saja muncul di layar, aplikasi langsung tertutup
+        // tanpa sempat menampilkan apa pun. Sekarang ikut cek {@code setupWindow} -- baru keluar
+        // kalau BENAR2 tak ada jendela penerus (setup MAUPUN kasir) yg masih terbuka.
+        if (!mainWindow && !setupWindow) { catatKeluarJikaJendelaTerakhir('login'); app.quit(); }
     });
 }
 
@@ -1792,15 +1804,14 @@ ipcMain.on('setup:save', (event, cfg) => {
     hapusKredensialDiingat();
     hapusHashOfflineLogin();
 
-    // Urutan SENGAJA -- buka login DULU, baru tutup setupWindow/mainWindow LAMA:
-    // setupWindow PUNYA handler 'closed' sendiri yg mengecek "if (!mainWindow) app.quit()" (lihat
-    // openSetupWindow) -- pada instalasi PERTAMA (skenario PERSIS yg dilaporkan: isi alamat, Tes
-    // Koneksi, Simpan & Buka Aplikasi) mainWindow memang belum pernah ada sama sekali, jadi kalau
-    // setupWindow.destroy() dipanggil SEBELUM openLoginWindow() sempat jalan, pengecekan itu salah
-    // mengira tak ada jendela lain yg akan dibuka dan APLIKASI LANGSUNG KELUAR tanpa apa pun muncul
-    // -- bug nyata yg dilaporkan pengguna, sama persis polanya dgn yg sudah diperbaiki di
-    // 'login:submit'/'error-page:retry' TAPI KELEWATAN di sini karena setupWindow adalah jendela
-    // KETIGA yg juga punya pengecekan app.quit() sendiri, bukan cuma mainWindow/loginWindow berdua.
+    // Urutan SENGAJA -- buka login DULU, baru tutup setupWindow/mainWindow LAMA: memastikan variabel
+    // modul {@code loginWindow} SUDAH terisi sebelum handler 'closed' milik setupWindow sempat jalan
+    // (destroy() memicu 'closed' scr sinkron). Handler 'closed' setupWindow SEKARANG ikut mengecek
+    // {@code loginWindow} (bukan cuma {@code mainWindow}, lihat openSetupWindow) -- SEBELUM diperbaiki
+    // di sana, urutan di sini saja TIDAK CUKUP krn pengecekannya buta thd loginWindow yg baru dibuka,
+    // jadi app.quit() tetap terpicu keliru. Kedua perbaikan ini SALING BUTUH: urutan (di sini) supaya
+    // variabelnya sudah terisi saat dicek, DAN kondisi yg benar (di openSetupWindow/openLoginWindow)
+    // supaya pengecekannya benar2 melihat variabel itu.
     openLoginWindow(cfg);
     if (setupWindow && !setupWindow.isDestroyed()) { setupWindow.destroy(); setupWindow = null; }
     if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.close(); mainWindow = null; }
